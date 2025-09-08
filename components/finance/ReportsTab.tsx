@@ -1,4 +1,4 @@
-import React from 'react';
+import React, { useState, useEffect } from 'react';
 import { StyledText } from '@/components/StyledText';
 import { useTheme } from '@/contexts/ThemeContext';
 import { useFinance } from '@/contexts/FinanceContext';
@@ -11,41 +11,62 @@ export default function ReportsTab() {
   const { theme } = useTheme();
   const { 
     expenses, 
-    commitments, 
+    obligations, 
     incomes, 
     getLast6MonthsOverview,
     currency 
   } = useFinance();
 
-  const monthsOverview = getLast6MonthsOverview();
+  const [monthsOverview, setMonthsOverview] = useState<any[]>([]);
+  const [isLoading, setIsLoading] = useState(true);
+
+  // Load months overview data
+  useEffect(() => {
+    const loadMonthsOverview = async () => {
+      try {
+        setIsLoading(true);
+        const overview = await getLast6MonthsOverview();
+        setMonthsOverview(overview || []);
+      } catch (error) {
+        console.error('Error loading months overview:', error);
+        setMonthsOverview([]);
+      } finally {
+        setIsLoading(false);
+      }
+    };
+
+    loadMonthsOverview();
+  }, [getLast6MonthsOverview]);
   const currentDate = new Date();
   const currentMonth = currentDate.getMonth() + 1;
   const currentYear = currentDate.getFullYear();
 
   // Calculate current month data
-  const currentMonthData = monthsOverview.find(
-    overview => overview.month === currentMonth && overview.year === currentYear
-  ) || { income: 0, expenses: 0, commitments: 0, remaining: 0 };
+  const currentMonthData = monthsOverview && monthsOverview.find
+    ? monthsOverview.find(overview => overview.month === currentMonth && overview.year === currentYear)
+    : null;
+  
+  const safeCurrentMonthData = currentMonthData || { income: 0, expenses: 0, commitments: 0, remaining: 0 };
 
   // Pie chart data for current month distribution
   const pieData = [
     {
       name: 'المتبقي',
-      population: Math.max(0, currentMonthData.remaining),
+      population: Math.max(0, safeCurrentMonthData.remaining),
       color: theme.colors.success,
       legendFontColor: theme.colors.text,
       legendFontSize: 12,
     },
     {
       name: 'المصروفات',
-      population: currentMonthData.expenses,
+      population: safeCurrentMonthData.expenses,
       color: theme.colors.error,
       legendFontColor: theme.colors.text,
       legendFontSize: 12,
     },
     {
       name: 'الالتزامات',
-      population: currentMonthData.commitments,
+      population: safeCurrentMonthData.commitments,
       color: theme.colors.warning,
       legendFontColor: theme.colors.text,
       legendFontSize: 12,
@@ -54,18 +75,18 @@ export default function ReportsTab() {
 
   // Bar chart data for last 6 months
   const barData = {
-    labels: monthsOverview.map(overview => {
+    labels: (monthsOverview || []).map(overview => {
       const months = ['ين', 'فبر', 'مار', 'أبر', 'ماي', 'يون', 'يول', 'أغس', 'سبت', 'أكت', 'نوف', 'ديس'];
       return months[overview.month - 1];
     }),
     datasets: [
       {
-        data: monthsOverview.map(overview => overview.income),
+        data: (monthsOverview || []).map(overview => overview.income),
         color: (opacity = 1) => theme.colors.success + Math.floor(opacity * 255).toString(16).padStart(2, '0'),
         strokeWidth: 2,
       },
       {
-        data: monthsOverview.map(overview => overview.expenses + overview.commitments),
+        data: (monthsOverview || []).map(overview => overview.expenses + overview.commitments),
         color: (opacity = 1) => theme.colors.error + Math.floor(opacity * 255).toString(16).padStart(2, '0'),
         strokeWidth: 2,
       },
@@ -90,9 +111,9 @@ export default function ReportsTab() {
     .sort(([,a], [,b]) => b - a)[0];
 
   // Calculate savings rate
-  const totalIncome = incomes.reduce((sum, income) => sum + income.amount, 0);
-  const totalExpenses = expenses.reduce((sum, expense) => sum + expense.amount, 0);
-  const totalCommitments = commitments.reduce((sum, commitment) => sum + commitment.amount, 0);
+  const totalIncome = incomes.reduce((sum: number, income: any) => sum + income.amount, 0);
+  const totalExpenses = expenses.reduce((sum: number, expense: any) => sum + expense.amount, 0);
+  const totalCommitments = obligations.reduce((sum: number, obligation: any) => sum + obligation.amount, 0);
   const savingsRate = totalIncome > 0 ? ((totalIncome - totalExpenses - totalCommitments) / totalIncome) * 100 : 0;
 
   const formatCurrency = (amount: number) => {
@@ -123,6 +144,14 @@ export default function ReportsTab() {
       stroke: theme.colors.primary,
     },
   };
+
+  if (isLoading) {
+    return (
+      <View style={[styles.container, { justifyContent: 'center', alignItems: 'center' }]}>
+        <StyledText style={{ color: theme.colors.text }}>جاري تحميل التقارير...</StyledText>
+      </View>
+    );
+  }
 
   return (
     <ScrollView style={styles.container} showsVerticalScrollIndicator={false}>
@@ -197,7 +226,7 @@ export default function ReportsTab() {
       )}
 
       {/* 6 Months Comparison */}
-      {monthsOverview.some(m => m.income > 0) && (
+      {monthsOverview && monthsOverview.some(m => m.income > 0) && (
         <View style={[styles.section, { backgroundColor: theme.colors.surface }]}>
           <StyledText style={[styles.sectionTitle, { color: theme.colors.text }]}>
             📈 مقارنة آخر 6 أشهر

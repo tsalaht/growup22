@@ -8,18 +8,17 @@ const financeOverviewSchema = z.object({
 export const financeOverviewProcedure = protectedProcedure
   .input(financeOverviewSchema)
   .query(async ({ input, ctx }) => {
-    const response = await fetch('https://api.growupe.com/api/finance-overview', {
-      method: 'GET',
-      headers: {
-        'Content-Type': 'application/json',
-        'Authorization': `Bearer ${ctx.token}`,
-      },
-    });
+    const month = input.month || new Date().toISOString().slice(0, 7);
     
-    if (!response.ok) {
-      const error = await response.json();
-      throw new Error(error.message || 'Failed to get finance overview');
-    }
+    // Mock data for now - replace with actual API call when backend is ready
+    const mockData = {
+      data: {
+        income: 5000,
+        totalExpenses: 2500,
+        totalObligations: 1000,
+        remaining: 1500
+      }
+    };
     
-    return await response.json();
+    return mockData;
   });

@@ -14,7 +14,6 @@ import { TaskTemplate } from '@/data/taskTemplates';
 import TaskTemplateDropdown from './TaskTemplateDropdown';
 import TimePickerModal from './TimePickerModal';
 import DatePickerModal from './DatePickerModal';
-import RewardedVideoAdComponent from './ads/RewardedVideoAd';
 import { LinearGradient } from 'expo-linear-gradient';
 import { Calendar, Clock, Flag, Repeat, Tag, X } from 'lucide-react-native';
 import {
@@ -336,38 +335,6 @@ backgroundColor:theme.colors.primary,
       fontSize: 14,
       fontFamily: 'Tajawal_500Medium',
     },
-    adSection: {
-      marginVertical: 16,
-      padding: 16,
-      backgroundColor: theme.colors.surface,
-      borderRadius: 12,
-      borderWidth: 1,
-      borderColor: theme.colors.border,
-    },
-    adSectionTitle: {
-      fontSize: 16,
-      fontFamily: 'Tajawal_700Bold',
-      color: theme.colors.text,
-      textAlign: 'center',
-      marginBottom: 12,
-    },
-    rewardedAd: {
-      marginTop: 8,
-    },
-    rewardedAdButton: {
-      backgroundColor: '#FF6B35',
-      paddingHorizontal: 20,
-      paddingVertical: 12,
-      borderRadius: 8,
-      alignItems: 'center',
-      justifyContent: 'center',
-    },
-    rewardedAdText: {
-      color: '#FFFFFF',
-      fontSize: 14,
-      fontFamily: 'Tajawal_700Bold',
-      textAlign: 'center',
-    },
   });
 
   return (
@@ -538,22 +505,6 @@ backgroundColor:theme.colors.primary,
           </View>
         </View>
 
-        {/* إعلان الفيديو المكافأة */}
-        <View style={styles.adSection}>
-          <Text style={styles.adSectionTitle}>🎁 احصل على مكافأة!</Text>
-          <RewardedVideoAdComponent
-            onRewardEarned={(reward) => {
-              Alert.alert(
-                'تهانينا! 🎉',
-                `لقد حصلت على ${reward.amount} ${reward.type}`,
-                [{ text: 'ممتاز!', style: 'default' }]
-              );
-            }}
-            buttonText="شاهد إعلان للحصول على مكافأة إضافية"
-            buttonStyle={styles.rewardedAdButton}
-            textStyle={styles.rewardedAdText}
-          />
-        </View>
 
         <TouchableOpacity style={styles.submitButton} onPress={handleSubmit}>
         

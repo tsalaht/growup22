@@ -39,11 +39,39 @@ const convertApiTaskToLocal = (apiTask: ApiTask): Task => ({
 
 // Convert local task to API format
 const convertLocalTaskToApi = (task: Omit<Task, 'id' | 'createdAt' | 'updatedAt'>) => {
-  // Create a proper time string for the API
+  // Create a proper time string for the API (ISO 8601 UTC format)
   let timeString: string;
   if (task.dueTime) {
-    // If dueTime is provided, use it
-    timeString = new Date(`2000-01-01T${task.dueTime}`).toISOString();
+    // If dueTime is provided, create a proper ISO 8601 string
+    if (task.category === 'daily') {
+      // For daily tasks, use today's date with the specified time
+      const today = new Date();
+      const [hours, minutes] = task.dueTime.split(':');
+      const timeDate = new Date(today.getFullYear(), today.getMonth(), today.getDate(), 
+                               parseInt(hours), parseInt(minutes), 0);
+      timeString = timeDate.toISOString();
+    } else if (task.category === 'weekly' && task.dueDate) {
+      // For weekly tasks, use the specified day of the week
+      const today = new Date();
+      const dayOfWeek = parseInt(task.dueDate);
+      const daysUntilTarget = (dayOfWeek - today.getDay() + 7) % 7;
+      const targetDate = new Date(today);
+      targetDate.setDate(today.getDate() + daysUntilTarget);
+      
+      const [hours, minutes] = task.dueTime.split(':');
+      const timeDate = new Date(targetDate.getFullYear(), targetDate.getMonth(), targetDate.getDate(), 
+                               parseInt(hours), parseInt(minutes), 0);
+      timeString = timeDate.toISOString();
+    } else if (task.category === 'monthly' && task.dueDate) {
+      // For monthly tasks, use the specified date
+      const [hours, minutes] = task.dueTime.split(':');
+      const timeDate = new Date(task.dueDate);
+      timeDate.setHours(parseInt(hours), parseInt(minutes), 0, 0);
+      timeString = timeDate.toISOString();
+    } else {
+      // Fallback to current time
+      timeString = new Date().toISOString();
+    }
   } else {
     // If no dueTime, use current time
     timeString = new Date().toISOString();
@@ -51,24 +79,38 @@ const convertLocalTaskToApi = (task: Omit<Task, 'id' | 'createdAt' | 'updatedAt'
 
   // Create proper periodValue based on category and dueDate
   let periodValue: string;
-  if (task.dueDate) {
-    // If dueDate is provided, use it directly
-    periodValue = task.dueDate;
-  } else {
-    // Default values based on category - use more generic values
-    switch (task.category) {
-      case 'daily':
-        periodValue = 'EVERY_DAY';
-        break;
-      case 'weekly':
-        periodValue = 'EVERY_WEEK';
-        break;
-      case 'monthly':
-        periodValue = 'EVERY_MONTH';
-        break;
-      default:
-        periodValue = 'EVERY_DAY';
+  
+  if (task.category === 'daily') {
+    // For daily tasks, use MORNING or EVENING based on time
+    if (task.dueTime) {
+      const [hours] = task.dueTime.split(':');
+      const hour = parseInt(hours);
+      periodValue = hour < 12 ? 'MORNING' : 'EVENING';
+    } else {
+      periodValue = 'MORNING';
     }
+  } else if (task.category === 'weekly') {
+    // For weekly tasks, use day of week
+    if (task.dueDate) {
+      const dayNumber = parseInt(task.dueDate);
+      const dayNames = ['SUNDAY', 'MONDAY', 'TUESDAY', 'WEDNESDAY', 'THURSDAY', 'FRIDAY', 'SATURDAY'];
+      periodValue = dayNames[dayNumber] || 'SUNDAY';
+    } else {
+      periodValue = 'SUNDAY';
+    }
+  } else if (task.category === 'monthly') {
+    // For monthly tasks, use month name
+    if (task.dueDate) {
+      const date = new Date(task.dueDate);
+      const monthNames = ['JANUARY', 'FEBRUARY', 'MARCH', 'APRIL', 'MAY', 'JUNE', 
+                         'JULY', 'AUGUST', 'SEPTEMBER', 'OCTOBER', 'NOVEMBER', 'DECEMBER'];
+      periodValue = monthNames[date.getMonth()] || 'JANUARY';
+    } else {
+      periodValue = 'JANUARY';
+    }
+  } else {
+    // Default fallback
+    periodValue = 'MORNING';
   }
 
   // Map category to proper type
@@ -87,15 +129,22 @@ const convertLocalTaskToApi = (task: Omit<Task, 'id' | 'createdAt' | 'updatedAt'
       taskType = 'DAILY'; // Default fallback
   }
 
-  const apiTaskData = {
+  const apiTaskData: any = {
     title: task.title,
     type: taskType,
     time: timeString,
-    periodValue: periodValue,
   };
+  
+  // Add periodValue only if it's not empty
+  if (periodValue && periodValue.trim() !== '') {
+    apiTaskData.periodValue = periodValue;
+  }
 
   console.log('convertLocalTaskToApi: Input task:', task);
   console.log('convertLocalTaskToApi: Output API data:', apiTaskData);
+  console.log('convertLocalTaskToApi: Task type:', taskType);
+  console.log('convertLocalTaskToApi: Period value:', periodValue);
+  console.log('convertLocalTaskToApi: Time string:', timeString);
 
   return apiTaskData;
 };
@@ -187,8 +236,8 @@ export const [TaskProvider, useTasks] = createContextHook(() => {
         const newTask: Task = {
           ...taskData,
           id: Date.now().toString(),
-          createdAt: new Date(),
-          updatedAt: new Date(),
+          createdAt: new Date().toISOString(),
+          updatedAt: new Date().toISOString(),
         };
         const updatedTasks = [...tasks, newTask];
         setTasks(updatedTasks);
@@ -515,7 +564,7 @@ export const [TaskProvider, useTasks] = createContextHook(() => {
         // Toggle locally only
         const updatedTasks = tasks.map(t =>
           t.id === taskId 
-            ? { ...t, status: t.status === 'completed' ? 'pending' : 'completed', updatedAt: new Date().toISOString() }
+            ? { ...t, status: (t.status === 'completed' ? 'pending' : 'completed') as 'pending' | 'completed', updatedAt: new Date().toISOString() }
             : t
         );
         setTasks(updatedTasks);

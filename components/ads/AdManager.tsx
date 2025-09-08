@@ -1,25 +1,32 @@
 import React, { useEffect, useState } from 'react';
-import { View, StyleSheet, Platform } from 'react-native';
-import mobileAds, { MaxAdContentRating } from 'react-native-google-mobile-ads';
+import { View, Text, StyleSheet, TouchableOpacity, Alert } from 'react-native';
+import mobileAds from 'react-native-google-mobile-ads';
+import { useTheme } from '@/contexts/ThemeContext';
 import BannerAdComponent from './BannerAd';
-import RewardedVideoAdComponent from './RewardedVideoAd';
+import InterstitialAdManager from './InterstitialAd';
+import RewardedAdManager from './RewardedAd';
+import { IS_DEVELOPMENT } from '@/config/ads';
+import {
+  useFonts,
+  Tajawal_400Regular,
+  Tajawal_700Bold,
+  Tajawal_500Medium,
+} from '@expo-google-fonts/tajawal';
 
 interface AdManagerProps {
-  showBanner?: boolean;
-  showRewardedVideo?: boolean;
-  bannerPosition?: 'top' | 'bottom';
-  onRewardEarned?: (reward: any) => void;
-  children?: React.ReactNode;
+  children: React.ReactNode;
 }
 
-const AdManager: React.FC<AdManagerProps> = ({
-  showBanner = true,
-  showRewardedVideo = false,
-  bannerPosition = 'bottom',
-  onRewardEarned,
-  children,
-}) => {
+export default function AdManager({ children }: AdManagerProps) {
+  const [fontsLoaded] = useFonts({
+    Tajawal_400Regular,
+    Tajawal_700Bold,
+    Tajawal_500Medium,
+  });
+
+  const { theme } = useTheme();
   const [isInitialized, setIsInitialized] = useState(false);
+  const [showTestControls, setShowTestControls] = useState(IS_DEVELOPMENT);
 
   useEffect(() => {
     initializeAds();
@@ -27,90 +34,155 @@ const AdManager: React.FC<AdManagerProps> = ({
 
   const initializeAds = async () => {
     try {
-      console.log('🚀 Initializing Google Mobile Ads...');
-      
-      // Initialize the mobile ads SDK
-      await mobileAds().initialize();
-      
-      // Set content rating for ads
-      await mobileAds().setRequestConfiguration({
-        maxAdContentRating: MaxAdContentRating.PG,
-        tagForChildDirectedTreatment: false,
-        tagForUnderAgeOfConsent: false,
-      });
-      
-      console.log('✅ Google Mobile Ads initialized successfully');
+      const adapterStatuses = await mobileAds().initialize();
       setIsInitialized(true);
+      
+      if (IS_DEVELOPMENT) {
+        console.log('✅ Google Mobile Ads initialized:', adapterStatuses);
+      }
+
+      // Load ads after initialization
+      InterstitialAdManager.getInstance().loadAd();
+      RewardedAdManager.getInstance().loadAd();
     } catch (error) {
       console.error('❌ Error initializing Google Mobile Ads:', error);
+      // Don't crash the app, just disable ads
+      setIsInitialized(false);
+      if (IS_DEVELOPMENT) {
+        console.log('Ads disabled due to initialization error');
+      }
     }
   };
 
-  const handleRewardEarned = (reward: any) => {
-    console.log('🎉 Reward earned:', reward);
-    onRewardEarned?.(reward);
+  const showInterstitialAd = async () => {
+    try {
+      const success = await InterstitialAdManager.getInstance().showAd();
+      if (!success) {
+        Alert.alert('عذراً', 'الإعلان غير متاح حالياً، حاول مرة أخرى لاحقاً');
+      }
+    } catch (error) {
+      console.error('Error showing interstitial ad:', error);
+    }
   };
 
-  if (!isInitialized) {
-    return (
-      <View style={styles.container}>
-        {children}
-      </View>
-    );
+  const showRewardedAd = async () => {
+    try {
+      RewardedAdManager.getInstance().setCallbacks({
+        onRewardEarned: (reward) => {
+          Alert.alert('تهانينا!', `لقد حصلت على ${reward.amount} ${reward.type}`);
+        },
+        onAdClosed: () => {
+          console.log('Rewarded ad closed');
+        },
+        onAdFailedToLoad: (error) => {
+          Alert.alert('عذراً', 'فشل في تحميل الإعلان');
+        },
+      });
+
+      const success = await RewardedAdManager.getInstance().showAd();
+      if (!success) {
+        Alert.alert('عذراً', 'الإعلان غير متاح حالياً، حاول مرة أخرى لاحقاً');
+      }
+    } catch (error) {
+      console.error('Error showing rewarded ad:', error);
+    }
+  };
+
+  const styles = StyleSheet.create({
+    container: {
+      flex: 1,
+    },
+    testControls: {
+      position: 'absolute',
+      top: 50,
+      right: 10,
+      backgroundColor: theme.colors.surface,
+      padding: 10,
+      borderRadius: 8,
+      shadowColor: '#000',
+      shadowOffset: { width: 0, height: 2 },
+      shadowOpacity: 0.25,
+      shadowRadius: 4,
+      elevation: 5,
+      zIndex: 1000,
+    },
+    testButton: {
+      backgroundColor: theme.colors.primary,
+      paddingHorizontal: 12,
+      paddingVertical: 6,
+      borderRadius: 6,
+      marginVertical: 2,
+    },
+    testButtonText: {
+      color: 'white',
+      fontSize: 12,
+      fontFamily: 'Tajawal_500Medium',
+      textAlign: 'center',
+    },
+    toggleButton: {
+      backgroundColor: theme.colors.background,
+      paddingHorizontal: 8,
+      paddingVertical: 4,
+      borderRadius: 4,
+      marginBottom: 8,
+    },
+    toggleButtonText: {
+      color: theme.colors.text,
+      fontSize: 10,
+      fontFamily: 'Tajawal_400Regular',
+      textAlign: 'center',
+    },
+  });
+
+  if (!fontsLoaded) {
+    return null;
   }
 
   return (
     <View style={styles.container}>
-      {showBanner && bannerPosition === 'top' && (
-        <View style={styles.bannerTop}>
-          <BannerAdComponent />
-        </View>
+      {children}
+      
+      {isInitialized && (
+        <BannerAdComponent 
+          style={{ 
+            position: 'absolute', 
+            bottom: 0, 
+            left: 0, 
+            right: 0,
+            backgroundColor: theme.colors.surface,
+            borderTopWidth: 1,
+            borderTopColor: theme.colors.border,
+          }} 
+        />
       )}
-      
-      <View style={styles.content}>
-        {children}
-      </View>
-      
-      {showBanner && bannerPosition === 'bottom' && (
-        <View style={styles.bannerBottom}>
-          <BannerAdComponent />
-        </View>
-      )}
-      
-      {showRewardedVideo && (
-        <View style={styles.rewardedVideoContainer}>
-          <RewardedVideoAdComponent onRewardEarned={handleRewardEarned} />
+
+      {showTestControls && IS_DEVELOPMENT && (
+        <View style={styles.testControls}>
+          <TouchableOpacity 
+            style={styles.toggleButton}
+            onPress={() => setShowTestControls(false)}
+          >
+            <Text style={styles.toggleButtonText}>إخفاء</Text>
+          </TouchableOpacity>
+          
+          <TouchableOpacity 
+            style={styles.testButton}
+            onPress={showInterstitialAd}
+          >
+            <Text style={styles.testButtonText}>إعلان بيني</Text>
+          </TouchableOpacity>
+          
+          <TouchableOpacity 
+            style={styles.testButton}
+            onPress={showRewardedAd}
+          >
+            <Text style={styles.testButtonText}>إعلان مكافأة</Text>
+          </TouchableOpacity>
         </View>
       )}
     </View>
   );
-};
+}
 
-const styles = StyleSheet.create({
-  container: {
-    flex: 1,
-  },
-  content: {
-    flex: 1,
-  },
-  bannerTop: {
-    backgroundColor: '#f5f5f5',
-    paddingVertical: 8,
-    borderBottomWidth: 1,
-    borderBottomColor: '#e0e0e0',
-  },
-  bannerBottom: {
-    backgroundColor: '#f5f5f5',
-    paddingVertical: 8,
-    borderTopWidth: 1,
-    borderTopColor: '#e0e0e0',
-  },
-  rewardedVideoContainer: {
-    padding: 16,
-    backgroundColor: '#f9f9f9',
-    borderTopWidth: 1,
-    borderTopColor: '#e0e0e0',
-  },
-});
-
-export default AdManager;
+// Export managers for use in other components
+export { InterstitialAdManager, RewardedAdManager };

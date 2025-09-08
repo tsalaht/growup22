@@ -1,7 +1,8 @@
-import React, { useEffect, useState } from 'react';
-import { View, StyleSheet, Platform } from 'react-native';
+import React, { useState } from 'react';
+import { View, Text, StyleSheet, Alert } from 'react-native';
 import { BannerAd, BannerAdSize, TestIds } from 'react-native-google-mobile-ads';
-import { getAdUnitId, getCurrentPlatform, AD_CONFIG } from '../../config/ads';
+import { useTheme } from '@/contexts/ThemeContext';
+import { getBannerAdUnitId, IS_DEVELOPMENT } from '@/config/ads';
 
 interface BannerAdComponentProps {
   size?: BannerAdSize;
@@ -10,56 +11,85 @@ interface BannerAdComponentProps {
   onAdFailedToLoad?: (error: any) => void;
 }
 
-const BannerAdComponent: React.FC<BannerAdComponentProps> = ({
-  size = BannerAdSize.BANNER,
+export default function BannerAdComponent({ 
+  size = BannerAdSize.BANNER, 
   style,
   onAdLoaded,
-  onAdFailedToLoad,
-}) => {
-  const [adUnitId, setAdUnitId] = useState<string>('');
-
-  useEffect(() => {
-    // Get the appropriate ad unit ID for the current platform
-    const platform = getCurrentPlatform();
-    const unitId = getAdUnitId('BANNER', platform);
-    setAdUnitId(unitId);
-    
-    console.log(`📱 Banner Ad Unit ID for ${platform}: ${unitId}`);
-  }, []);
+  onAdFailedToLoad 
+}: BannerAdComponentProps) {
+  const { theme } = useTheme();
+  const [adLoaded, setAdLoaded] = useState(false);
 
   const handleAdLoaded = () => {
-    console.log('✅ Banner ad loaded successfully');
+    setAdLoaded(true);
     onAdLoaded?.();
+    if (IS_DEVELOPMENT) {
+      console.log('✅ Banner Ad loaded successfully');
+    }
   };
 
   const handleAdFailedToLoad = (error: any) => {
-    console.log('❌ Banner ad failed to load:', error);
+    setAdLoaded(false);
     onAdFailedToLoad?.(error);
+    if (IS_DEVELOPMENT) {
+      console.log('❌ Banner Ad failed to load:', error);
+    }
+    // Don't crash the app, just hide the ad
+    console.log('Banner ad disabled due to error');
   };
 
-  if (!adUnitId) {
-    return null;
-  }
+  const styles = StyleSheet.create({
+    container: {
+      backgroundColor: theme.colors.surface,
+      alignItems: 'center',
+      justifyContent: 'center',
+      paddingVertical: 8,
+      ...style,
+    },
+    adContainer: {
+      backgroundColor: theme.colors.background,
+      borderRadius: 8,
+      overflow: 'hidden',
+      shadowColor: '#000',
+      shadowOffset: { width: 0, height: 2 },
+      shadowOpacity: 0.1,
+      shadowRadius: 4,
+      elevation: 3,
+    },
+    loadingContainer: {
+      height: 50,
+      backgroundColor: theme.colors.surface,
+      alignItems: 'center',
+      justifyContent: 'center',
+      borderRadius: 8,
+    },
+    loadingText: {
+      color: theme.colors.textSecondary,
+      fontSize: 12,
+      fontFamily: 'Tajawal_400Regular',
+    },
+  });
 
   return (
-    <View style={[styles.container, style]}>
-      <BannerAd
-        unitId={adUnitId}
-        size={size}
-        requestOptions={AD_CONFIG.REQUEST_CONFIG}
-        onAdLoaded={handleAdLoaded}
-        onAdFailedToLoad={handleAdFailedToLoad}
-      />
+    <View style={styles.container}>
+      <View style={styles.adContainer}>
+        <BannerAd
+          unitId={getBannerAdUnitId()}
+          size={size}
+          requestOptions={{
+            requestNonPersonalizedAdsOnly: true,
+          }}
+          onAdLoaded={handleAdLoaded}
+          onAdFailedToLoad={handleAdFailedToLoad}
+        />
+        {!adLoaded && (
+          <View style={styles.loadingContainer}>
+            <Text style={styles.loadingText}>
+              {IS_DEVELOPMENT ? 'Loading Test Ad...' : 'جاري تحميل الإعلان...'}
+            </Text>
+          </View>
+        )}
+      </View>
     </View>
   );
-};
-
-const styles = StyleSheet.create({
-  container: {
-    alignItems: 'center',
-    justifyContent: 'center',
-    backgroundColor: 'transparent',
-  },
-});
-
-export default BannerAdComponent;
+}

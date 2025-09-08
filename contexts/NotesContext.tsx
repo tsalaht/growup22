@@ -100,15 +100,22 @@ const convertApiNoteToLocal = (apiNote: ApiNote): Note => {
 const convertLocalNoteToApi = (note: Omit<Note, 'id' | 'createdAt' | 'updatedAt'>) => {
   console.log('convertLocalNoteToApi: Input note category:', note.category);
   
-  // Map local categories to API categories - trying IDEAS for development
+  // Map local categories to API categories - ensure all valid categories are covered
   const categoryMap: { [key: string]: string } = {
     'work': 'WORK',
-    'development': 'IDEAS',  // Try IDEAS instead of PERSONAL
+    'development': 'WORK',  // Map development to WORK
     'follow-up': 'FOLLOW_UP',
-    'other': 'OTHER'
+    'personal': 'OTHER',
+    'other': 'OTHER',
+    'ideas': 'OTHER',
+    'notes': 'OTHER',
+    'reminder': 'OTHER',
+    'task': 'WORK',
+    'project': 'WORK'
   };
 
-  const apiCategory = categoryMap[note.category] || 'OTHER';
+  // Always default to OTHER if category is not recognized
+  const apiCategory = categoryMap[note.category?.toLowerCase()] || 'OTHER';
   console.log('convertLocalNoteToApi: Mapped to API category:', apiCategory);
 
   return {
@@ -261,30 +268,58 @@ export const [NotesProvider, useNotes] = createContextHook(() => {
       
       const apiNoteData = convertLocalNoteToApi(noteData);
       console.log('NotesContext: API note data:', apiNoteData);
-      const response = await apiService.createNote(apiNoteData);
-      console.log('NotesContext: API response:', response);
-      const newNote = convertApiNoteToLocal(response.note);
-      console.log('NotesContext: Converted note:', newNote);
+      
+      try {
+        const response = await apiService.createNote(apiNoteData);
+        console.log('NotesContext: API response:', response);
+        const newNote = convertApiNoteToLocal(response.note);
+        console.log('NotesContext: Converted note:', newNote);
 
-      const updatedNotes = [...notes, newNote];
-      setNotes(updatedNotes);
+        const updatedNotes = [...notes, newNote];
+        setNotes(updatedNotes);
 
-      if (newNote.reminder?.enabled) {
-        await scheduleNotification(newNote);
+        if (newNote.reminder?.enabled) {
+          await scheduleNotification(newNote);
+        }
+
+        // Track activity for smart notifications
+        await trackNotesActivity();
+      } catch (error) {
+        console.log('API create note failed, creating locally:', error);
+        // Create note locally if API fails
+        const newNote: Note = {
+          ...noteData,
+          id: `local_${Date.now()}`,
+          createdAt: new Date(),
+          updatedAt: new Date(),
+        };
+
+        const updatedNotes = [...notes, newNote];
+        setNotes(updatedNotes);
+
+        // Save to local storage
+        await AsyncStorage.setItem('smart_notes', JSON.stringify(updatedNotes));
+
+        if (newNote.reminder?.enabled) {
+          await scheduleNotification(newNote);
+        }
+
+        // Track activity for smart notifications
+        await trackNotesActivity();
       }
-
-      // Track activity for smart notifications
-      await trackNotesActivity();
 
       // Schedule 3-hour reminder
       try {
-        await scheduleNoteReminder3Hours(newNote.title);
-        console.log('3-hour reminder scheduled for note:', newNote.title);
+        const finalNote = notes[notes.length - 1];
+        if (finalNote) {
+          await scheduleNoteReminder3Hours(finalNote.title);
+          console.log('3-hour reminder scheduled for note:', finalNote.title);
+        }
       } catch (reminderError) {
         console.error('Error scheduling 3-hour reminder:', reminderError);
       }
 
-      return newNote;
+      return notes[notes.length - 1];
     } catch (error) {
       console.error('Error adding note:', error);
       throw error;
@@ -314,24 +349,49 @@ export const [NotesProvider, useNotes] = createContextHook(() => {
       
       const apiNoteData = convertLocalNoteToApi(updatedNote);
       
-      const response = await apiService.updateNote(id, {
-        title: apiNoteData.title,
-        content: apiNoteData.content,
-        specificTime: apiNoteData.specificTime,
-      });
-      
-      const apiUpdatedNote = convertApiNoteToLocal(response.note);
-      const updatedNotes = notes.map(n => n.id === id ? apiUpdatedNote : n);
-      setNotes(updatedNotes);
+      try {
+        const response = await apiService.updateNote(id, {
+          title: apiNoteData.title,
+          content: apiNoteData.content,
+          specificTime: apiNoteData.specificTime,
+        });
+        
+        const apiUpdatedNote = convertApiNoteToLocal(response.note);
+        const updatedNotes = notes.map(n => n.id === id ? apiUpdatedNote : n);
+        setNotes(updatedNotes);
 
-      if (apiUpdatedNote.reminder?.enabled) {
-        await scheduleNotification(apiUpdatedNote);
-      } else {
-        // Cancel notification if reminder is disabled
-        if (note.reminder?.notificationId) {
-          await NotificationService.cancelNotification(note.reminder.notificationId);
+        if (apiUpdatedNote.reminder?.enabled) {
+          await scheduleNotification(apiUpdatedNote);
+        } else {
+          // Cancel notification if reminder is disabled
+          if (note.reminder?.notificationId) {
+            await NotificationService.cancelNotification(note.reminder.notificationId);
+          }
+          console.log('Reminder cancelled for note:', id);
         }
-        console.log('Reminder cancelled for note:', id);
+      } catch (error) {
+        console.log('API update note failed, updating locally:', error);
+        // Update note locally if API fails
+        const updatedNotes = notes.map(n => n.id === id ? {
+          ...n,
+          ...updatedNote,
+          updatedAt: new Date(),
+        } : n);
+        setNotes(updatedNotes);
+
+        // Save to local storage
+        await AsyncStorage.setItem('smart_notes', JSON.stringify(updatedNotes));
+
+        const updatedNoteObj = updatedNotes.find(n => n.id === id);
+        if (updatedNoteObj?.reminder?.enabled) {
+          await scheduleNotification(updatedNoteObj);
+        } else {
+          // Cancel notification if reminder is disabled
+          if (note.reminder?.notificationId) {
+            await NotificationService.cancelNotification(note.reminder.notificationId);
+          }
+          console.log('Reminder cancelled for note:', id);
+        }
       }
 
       // Track activity for smart notifications

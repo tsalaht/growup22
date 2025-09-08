@@ -183,7 +183,7 @@ export default function OverviewTab() {
           </View>
 
           {/* Table Rows */}
-          {monthsOverview.map((overview, index) => (
+          {monthsOverview && monthsOverview.map((overview, index) => (
             <View
               key={`${overview.month}-${overview.year}`}
               style={[

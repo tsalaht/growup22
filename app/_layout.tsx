@@ -24,6 +24,7 @@ import { FinanceProvider } from "@/contexts/FinanceContext";
 import { GoalsProvider } from "@/contexts/GoalsContext";
 import { NotesProvider } from "@/contexts/NotesContext";
 import { NotificationProvider } from "@/contexts/NotificationContext";
+import AdManager from "@/components/ads/AdManager";
 import * as Updates from 'expo-updates';
 
 // Services
@@ -147,23 +148,25 @@ export default function RootLayout() {
   }, [fontsLoaded]);
 
   return (
-    <GestureHandlerRootView style={[{ flex: 1 }]}>
-      <ThemeProvider>
-        <NotificationProvider>
-          <AuthProvider>
-            <TaskProvider>
-              <FinanceProvider>
-                <GoalsProvider>
-                  <NotesProvider>
-                    <RootLayoutNav />
-                  </NotesProvider>
-                </GoalsProvider>
-              </FinanceProvider>
-            </TaskProvider>
-          </AuthProvider>
-        </NotificationProvider>
-      </ThemeProvider>
-    </GestureHandlerRootView>
+        <GestureHandlerRootView style={[{ flex: 1 }]}>
+          <ThemeProvider>
+            <NotificationProvider>
+              <AuthProvider>
+                <TaskProvider>
+                  <FinanceProvider>
+                    <GoalsProvider>
+                      <NotesProvider>
+                        <AdManager>
+                          <RootLayoutNav />
+                        </AdManager>
+                      </NotesProvider>
+                    </GoalsProvider>
+                  </FinanceProvider>
+                </TaskProvider>
+              </AuthProvider>
+            </NotificationProvider>
+          </ThemeProvider>
+        </GestureHandlerRootView>
   );
 }
 

@@ -12,19 +12,20 @@ const addExpenseSchema = z.object({
 export const addExpenseProcedure = protectedProcedure
   .input(addExpenseSchema)
   .mutation(async ({ input, ctx }) => {
-    const response = await fetch('https://api.growupe.com/api/add-expenses', {
-      method: 'POST',
-      headers: {
-        'Content-Type': 'application/json',
-        'Authorization': `Bearer ${ctx.token}`,
-      },
-      body: JSON.stringify(input),
-    });
+    // Mock data for now - replace with actual API call when backend is ready
+    const mockExpense = {
+      id: `expense_${Date.now()}`,
+      userId: ctx.userId,
+      name: input.name,
+      amount: input.amount,
+      category: input.category,
+      date: input.date,
+      note: input.note || '',
+      createdAt: new Date().toISOString(),
+    };
     
-    if (!response.ok) {
-      const error = await response.json();
-      throw new Error(error.message || 'Failed to add expense');
-    }
-    
-    return await response.json();
+    return {
+      message: 'تم إضافة المصروف بنجاح',
+      expense: mockExpense
+    };
   });

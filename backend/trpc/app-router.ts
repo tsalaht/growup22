@@ -20,6 +20,7 @@ import { toggleTaskProcedure } from "./routes/tasks/toggle-task/route";
 // Finance routes
 import { setIncomeProcedure } from "./routes/finance/set-income/route";
 import { getIncomeProcedure } from "./routes/finance/get-income/route";
+import { financeOverviewProcedure } from "./routes/finance/finance-overview/route";
 
 export const appRouter = createTRPCRouter({
   example: createTRPCRouter({
@@ -50,6 +51,7 @@ export const appRouter = createTRPCRouter({
   finance: createTRPCRouter({
     setIncome: setIncomeProcedure,
     getIncome: getIncomeProcedure,
+    getFinanceOverview: financeOverviewProcedure,
   }),
 });
 

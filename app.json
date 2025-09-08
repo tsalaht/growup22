@@ -2,7 +2,7 @@
   "expo": {
     "name": "growUp",
     "entryPoint": "./app/entry.ts",
-    "slug": "growup",
+    "slug": "grow",
     "version": "1.0.0",
     "orientation": "portrait",
     "icon": "./assets/images/images/logo2.png",
@@ -23,7 +23,7 @@
     },
     "ios": {
       "supportsTablet": true,
-      "bundleIdentifier": "app.rork.tbeed-edara-moham-zhki",
+      "bundleIdentifier": "com.ibrahim.grow",
       "infoPlist": {
         "NSPhotoLibraryUsageDescription": "Allow $(PRODUCT_NAME) to access your photos",
         "NSCameraUsageDescription": "Allow $(PRODUCT_NAME) to access your camera",
@@ -37,10 +37,10 @@
     },
     "android": {
       "adaptiveIcon": {
-        "foregroundImage": "./assets/images/adaptive-icon.png",
+        "foregroundImage": "./assets/images/images/logo2.png",
         "backgroundColor": "#ffffff"
       },
-      "package": "com.ma7moudjameel.tbeededaramohamzhki",
+      "package": "com.ibrahim.grow",
       "edgeToEdgeEnabled": true,
       "permissions": [
         "android.permission.CAMERA",
@@ -56,7 +56,7 @@
       ]
     },
     "web": {
-      "favicon": "./assets/images/favicon.png"
+      "favicon": "./assets/images/images/logo2.png"
     },
     "plugins": [
       [
@@ -74,20 +74,19 @@
       [
         "expo-notifications",
         {
-          "icon": "./local/assets/notification_icon.png",
+          "icon": "./assets/images/images/logo2.png",
           "color": "#ffffff",
           "defaultChannel": "default",
           "enableBackgroundRemoteNotifications": false
         }
       ],
-     [
-    "react-native-google-mobile-ads",
-    {
-      "androidAppId": "ca-app-pub-3940256099942544~3347511713",
-      "iosAppId": "ca-app-pub-3940256099942544~1458002511"
-    }
-  ]
-
+      [
+        "react-native-google-mobile-ads",
+        {
+          "androidAppId": "ca-app-pub-1029952950379935~5001861185",
+          "iosAppId": "ca-app-pub-1029952950379935~7295538955"
+        }
+      ]
     ],
     "experiments": {
       "typedRoutes": true
@@ -97,7 +96,7 @@
         "origin": "https://rork.com/"
       },
       "eas": {
-        "projectId": "ab20b3e6-c4d5-4f35-9993-99d753e59111"
+        "projectId": "cbc271cc-5e26-421f-a6c6-c92898be0de2"
       }
     },
     "owner": "salaheddinetabet00"

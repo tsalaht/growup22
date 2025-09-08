@@ -105,7 +105,7 @@ export const [NotificationProvider, useNotifications] = createContextHook(() => 
     }
   }, [settings]);
 
-  // Track user activity in different sections
+  // Track user activity in different sections with smart notification scheduling
   const trackActivity = useCallback(async (section: 'tasks' | 'finance' | 'notes' | 'goals', data?: any) => {
     const now = new Date();
     const updates: Partial<UserActivity> = {};
@@ -132,6 +132,9 @@ export const [NotificationProvider, useNotifications] = createContextHook(() => 
     
     await NotificationService.updateUserActivity(updates);
     
+    // Smart notification scheduling based on activity
+    await scheduleSmartNotificationsBasedOnActivity(section, data);
+    
     // Check for conditional notifications every 30 minutes
     const timeSinceLastCheck = now.getTime() - lastActivityCheck.getTime();
     if (timeSinceLastCheck > 30 * 60 * 1000) { // 30 minutes
@@ -139,6 +142,83 @@ export const [NotificationProvider, useNotifications] = createContextHook(() => 
       setLastActivityCheck(now);
     }
   }, [lastActivityCheck]);
+
+  // Schedule smart notifications based on user activity
+  const scheduleSmartNotificationsBasedOnActivity = useCallback(async (section: string, data?: any) => {
+    const now = new Date();
+    
+    switch (section) {
+      case 'tasks':
+        // If user completed their first task, schedule encouragement
+        if (data?.completedTasks === 1) {
+          console.log('🎉 First task completed - scheduling encouragement');
+          await NotificationService.scheduleSmartNotification({
+            id: `first_task_celebration_${Date.now()}`,
+            type: 'motivational',
+            title: 'أحسنت! 🎉',
+            body: 'أول مهمة مكتملة! هذا بداية رحلة النجاح مع Growupe 💚',
+            scheduledTime: new Date(now.getTime() + 10 * 60 * 1000), // 10 minutes
+            repeat: 'none'
+          });
+        }
+        // If user completed 5 tasks, schedule milestone celebration
+        else if (data?.completedTasks === 5) {
+          console.log('🏆 5 tasks completed - scheduling milestone celebration');
+          await NotificationService.scheduleSmartNotification({
+            id: `milestone_5_tasks_${Date.now()}`,
+            type: 'motivational',
+            title: 'إنجاز رائع! 🏆',
+            body: '5 مهام مكتملة! أنت تبني عادة النجاح خطوة بخطوة ✨',
+            scheduledTime: new Date(now.getTime() + 15 * 60 * 1000), // 15 minutes
+            repeat: 'none'
+          });
+        }
+        break;
+        
+      case 'finance':
+        // If user set income for first time, schedule financial planning tip
+        if (data?.monthlyIncome && data.monthlyIncome > 0) {
+          console.log('💰 Income set - scheduling financial planning tip');
+          await NotificationService.scheduleSmartNotification({
+            id: `financial_planning_tip_${Date.now()}`,
+            type: 'finance',
+            title: 'نصيحة مالية 💡',
+            body: 'ممتاز! الآن يمكنك تتبع مصاريفك وضبط ميزانيتك بشكل ذكي 📊',
+            scheduledTime: new Date(now.getTime() + 20 * 60 * 1000), // 20 minutes
+            repeat: 'none'
+          });
+        }
+        break;
+        
+      case 'goals':
+        // If user created first goal, schedule goal achievement motivation
+        if (data?.activeGoals === 1) {
+          console.log('🎯 First goal created - scheduling goal motivation');
+          await NotificationService.scheduleSmartNotification({
+            id: `first_goal_motivation_${Date.now()}`,
+            type: 'goals',
+            title: 'هدف جديد! 🎯',
+            body: 'رائع! كل هدف يبدأ بحلم، وكل حلم يتحقق بالعمل 💪',
+            scheduledTime: new Date(now.getTime() + 25 * 60 * 1000), // 25 minutes
+            repeat: 'none'
+          });
+        }
+        break;
+        
+      case 'notes':
+        // If user created first note, schedule note organization tip
+        console.log('📝 Note created - scheduling organization tip');
+        await NotificationService.scheduleSmartNotification({
+          id: `note_organization_tip_${Date.now()}`,
+          type: 'notes',
+          title: 'نصيحة تنظيمية 📝',
+          body: 'الملاحظات الذكية تساعدك على تذكر الأفكار المهمة وتنظيمها 📋',
+          scheduledTime: new Date(now.getTime() + 30 * 60 * 1000), // 30 minutes
+          repeat: 'none'
+        });
+        break;
+    }
+  }, []);
 
   // Helper function to check if time is in quiet hours
   const isInQuietHours = useCallback((time: Date): boolean => {

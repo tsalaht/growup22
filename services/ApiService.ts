@@ -39,6 +39,7 @@ export interface LoginRequest {
   fcmToken?: string;
 }
 
+
 export interface ActivateRequest {
   activationToken: string;
   activationCode: string;
@@ -247,6 +248,7 @@ class ApiService {
 
   constructor() {
     this.baseUrl = PROJECT_CONFIG.api.baseUrl;
+    console.log('ApiService: Base URL initialized:', this.baseUrl);
   }
 
   // Set JWT token for authenticated requests
@@ -362,7 +364,7 @@ class ApiService {
         return this.request<T>(endpoint, options, retryCount + 1);
       }
       
-      console.error('API request failed:', error);
+      console.log('API request failed:', error);
       throw error;
     }
   }
@@ -392,6 +394,7 @@ class ApiService {
     });
   }
 
+
   async logout(): Promise<AuthResponse> {
     return this.request<AuthResponse>('/logout', {
       method: 'POST',
@@ -409,6 +412,12 @@ class ApiService {
     return this.request<AuthResponse>('/reset-password', {
       method: 'POST',
       body: JSON.stringify(data),
+    });
+  }
+
+  async getUser(): Promise<{ user: User }> {
+    return this.request<{ user: User }>('/get-user', {
+      method: 'GET',
     });
   }
 
@@ -466,14 +475,16 @@ class ApiService {
   }
 
   async getIncome(data: GetIncomeRequest): Promise<{ data: MonthlyIncome }> {
-    return this.request<{ data: MonthlyIncome }>(`/get-income?month=${data.month}`, {
-      method: 'GET',
+    return this.request<{ data: MonthlyIncome }>('/get-income', {
+      method: 'POST',
+      body: JSON.stringify(data),
     });
   }
 
   async getFinanceOverview(data: GetIncomeRequest): Promise<{ data: FinanceOverview }> {
-    return this.request<{ data: FinanceOverview }>(`/finance-overview?month=${data.month}`, {
-      method: 'GET',
+    return this.request<{ data: FinanceOverview }>('/finance-overview', {
+      method: 'POST',
+      body: JSON.stringify(data),
     });
   }
 
@@ -543,6 +554,8 @@ class ApiService {
 
   // Tasks Module endpoints
   async createTask(data: CreateTaskRequest): Promise<{ message: string; task: Task }> {
+    console.log('ApiService: createTask called with data:', data);
+    console.log('ApiService: createTask JSON body:', JSON.stringify(data));
     return this.request<{ message: string; task: Task }>('/create-task', {
       method: 'POST',
       body: JSON.stringify(data),

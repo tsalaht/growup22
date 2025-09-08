@@ -1,69 +1,68 @@
-// Google AdMob Test Ad Unit IDs
-// These are Google's official test ad unit IDs for development and testing
-
-export const AD_UNIT_IDS = {
-  // Banner Ad Unit IDs (Test)
-  BANNER: {
-    ANDROID: 'ca-app-pub-3940256099942544/6300978111',
-    IOS: 'ca-app-pub-3940256099942544/2934735716',
-  },
-  
-  // Rewarded Video Ad Unit IDs (Test)
-  REWARDED: {
-    ANDROID: 'ca-app-pub-3940256099942544/5224354917',
-    IOS: 'ca-app-pub-3940256099942544/1712485313',
-  },
-  
-  // Interstitial Ad Unit IDs (Test) - for future use
-  INTERSTITIAL: {
-    ANDROID: 'ca-app-pub-3940256099942544/1033173712',
-    IOS: 'ca-app-pub-3940256099942544/4411468910',
-  },
-  
-  // App Open Ad Unit IDs (Test) - for future use
-  APP_OPEN: {
-    ANDROID: 'ca-app-pub-3940256099942544/3419835294',
-    IOS: 'ca-app-pub-3940256099942544/5575463023',
-  },
-};
-
-// Ad Configuration
+// AdMob Configuration
 export const AD_CONFIG = {
-  // Test device IDs (optional - for testing specific devices)
-  TEST_DEVICE_IDS: [
-    'EMULATOR', // Android emulator
-    'SIMULATOR', // iOS simulator
-  ],
+  // App IDs
+  ANDROID_APP_ID: 'ca-app-pub-1029952950379935~5001861185',
+  IOS_APP_ID: 'ca-app-pub-1029952950379935~7295538955',
   
-  // Ad request configuration
-  REQUEST_CONFIG: {
-    requestNonPersonalizedAdsOnly: false, // Set to true for GDPR compliance if needed
-    keywords: ['productivity', 'finance', 'tasks', 'goals'], // Relevant keywords
-  },
+  // Ad Unit IDs - Production
+  BANNER_AD_UNIT_ID_ANDROID: 'ca-app-pub-1029952950379935/4771062361', // Android Banner
+  BANNER_AD_UNIT_ID_IOS: 'ca-app-pub-1029952950379935/2103207438', // iOS Banner
+  INTERSTITIAL_AD_UNIT_ID_ANDROID: 'ca-app-pub-1029952950379935/3838675529', // Android Interstitial
+  INTERSTITIAL_AD_UNIT_ID_IOS: 'ca-app-pub-1029952950379935/9650239552', // iOS Interstitial
   
-  // Banner ad configuration
-  BANNER_CONFIG: {
-    size: 'BANNER', // Standard banner size
-    position: 'bottom', // Position on screen
-  },
+  // Test Ad Unit IDs (for development)
+  TEST_BANNER_AD_UNIT_ID: 'ca-app-pub-3940256099942544/6300978111',
+  TEST_INTERSTITIAL_AD_UNIT_ID: 'ca-app-pub-3940256099942544/1033173712',
   
-  // Rewarded video configuration
-  REWARDED_CONFIG: {
-    // Reward amount (you can customize this)
-    rewardAmount: 1,
-    rewardType: 'coins', // or whatever reward type you want
-  },
+  // Ad Settings
+  REQUEST_NON_PERSONALIZED_ADS_ONLY: true,
+  
+  // Ad Frequency (in seconds)
+  INTERSTITIAL_AD_FREQUENCY: 30, // Show interstitial ad every 30 seconds
+  REWARDED_AD_FREQUENCY: 60, // Show rewarded ad every 60 seconds
+  
+  // Rewarded Ad Settings
+  REWARDED_AD_DURATION: 3, // 3 seconds duration
+  REWARDED_AD_REWARD_AMOUNT: 1, // Reward amount
+  REWARDED_AD_REWARD_TYPE: 'نقطة', // Reward type
 };
 
-// Helper function to get ad unit ID based on platform
-export const getAdUnitId = (adType: 'BANNER' | 'REWARDED' | 'INTERSTITIAL' | 'APP_OPEN', platform: 'android' | 'ios'): string => {
-  const platformKey = platform.toUpperCase() as 'ANDROID' | 'IOS';
-  return AD_UNIT_IDS[adType][platformKey];
+// Check if we're in development mode
+export const IS_DEVELOPMENT = __DEV__;
+
+// Get the appropriate ad unit ID based on environment and platform
+export const getBannerAdUnitId = () => {
+  if (IS_DEVELOPMENT) {
+    return AD_CONFIG.TEST_BANNER_AD_UNIT_ID;
+  }
+  
+  // Use platform-specific ad unit IDs for production
+  const Platform = require('react-native').Platform;
+  return Platform.OS === 'ios' 
+    ? AD_CONFIG.BANNER_AD_UNIT_ID_IOS 
+    : AD_CONFIG.BANNER_AD_UNIT_ID_ANDROID;
 };
 
-// Helper function to get current platform
-export const getCurrentPlatform = (): 'android' | 'ios' => {
-  return Platform.OS as 'android' | 'ios';
+export const getInterstitialAdUnitId = () => {
+  if (IS_DEVELOPMENT) {
+    return AD_CONFIG.TEST_INTERSTITIAL_AD_UNIT_ID;
+  }
+  
+  // Use platform-specific ad unit IDs for production
+  const Platform = require('react-native').Platform;
+  return Platform.OS === 'ios' 
+    ? AD_CONFIG.INTERSTITIAL_AD_UNIT_ID_IOS 
+    : AD_CONFIG.INTERSTITIAL_AD_UNIT_ID_ANDROID;
 };
 
-import { Platform } from 'react-native';
+export const getRewardedAdUnitId = () => {
+  if (IS_DEVELOPMENT) {
+    return AD_CONFIG.TEST_INTERSTITIAL_AD_UNIT_ID;
+  }
+  
+  // Use platform-specific ad unit IDs for production
+  const Platform = require('react-native').Platform;
+  return Platform.OS === 'ios' 
+    ? AD_CONFIG.INTERSTITIAL_AD_UNIT_ID_IOS 
+    : AD_CONFIG.INTERSTITIAL_AD_UNIT_ID_ANDROID;
+};

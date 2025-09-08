@@ -14,10 +14,11 @@ import { useTheme } from '@/contexts/ThemeContext';
 import { useTasks, Task } from '@/contexts/TaskContext';
 import { useAuth } from '@/contexts/AuthContext';
 import { useNotifications } from '@/contexts/NotificationContext';
-import { Redirect } from 'expo-router';
+import { Redirect, router } from 'expo-router';
+import { InterstitialAdManager, RewardedAdManager } from '@/components/ads/AdManager';
+import ShortAdManager from '@/components/ads/ShortAdManager';
 import TaskTable from '@/components/TaskTable';
 import TaskForm from '@/components/TaskForm';
-import AdManager from '@/components/ads/AdManager';
 import { LinearGradient } from 'expo-linear-gradient';
 import { Plus, Sun, Moon, Bell } from 'lucide-react-native';
 import NotificationService from '@/services/NotificationService';
@@ -53,27 +54,21 @@ export default function DailyTasksScreen() {
   const { getTasksByCategory, toggleTask, tasks, isLoading: tasksLoading } = useTasks();
   const { isInitialized } = useNotifications();
 
-  // Test notification function
-  const testNotification = async () => {
+  // Navigate to notifications screen
+  const navigateToNotifications = () => {
+    router.push('/notifications');
+  };
+
+  // Show ads when tasks are completed
+  const showAdOnTaskCompletion = async () => {
     try {
-      console.log('🧪 اختبار نظام الإشعارات...');
-      
-      // Test smart notification
-      const testTime = new Date();
-      testTime.setSeconds(testTime.getSeconds() + 5); // 5 seconds from now
-      
-      await NotificationService.scheduleSmartNotification({
-        id: 'test_notification',
-        type: 'motivational',
-        title: 'اختبار الإشعارات 🧪',
-        body: 'نظام الإشعارات يعمل بشكل ممتاز! 🎉 مرحباً بك في Growupe',
-        scheduledTime: testTime,
-        repeat: 'none'
-      });
-      
-      console.log('✅ تم جدولة إشعار الاختبار بنجاح!');
+      // Show interstitial ad every 3rd task completion
+      const completedTasks = tasks.filter(task => task.status === 'completed').length;
+      if (completedTasks > 0 && completedTasks % 3 === 0) {
+        await InterstitialAdManager.getInstance().showAd();
+      }
     } catch (error) {
-      console.error('❌ خطأ في اختبار الإشعارات:', error);
+      console.log('Error showing ad on task completion:', error);
     }
   };
 
@@ -107,6 +102,8 @@ export default function DailyTasksScreen() {
   const handleToggleTask = async (taskId: string) => {
     try {
       await toggleTask(taskId);
+      // Show ad after task completion
+      await showAdOnTaskCompletion();
     } catch (error) {
       console.error('Error toggling task:', error);
       Alert.alert('خطأ', 'حدث خطأ أثناء تحديث حالة المهمة');
@@ -180,11 +177,10 @@ export default function DailyTasksScreen() {
       alignItems: 'center',
       gap: 8,
     },
-    testButton: {
+    notificationButton: {
       padding: 8,
       borderRadius: 12,
       backgroundColor: theme.colors.primary,
-      opacity: isInitialized ? 1 : 0.5,
     },
     themeButton: {
       padding: 8,
@@ -301,24 +297,18 @@ export default function DailyTasksScreen() {
     content: {
       flex: 1,
     },
-    adContainer: {
-      marginHorizontal: 16,
-      marginBottom: 8,
-    },
   });
 if (!fontsLoaded) {
     return null;
   }
   return (
-    <AdManager showBanner={true} bannerPosition="bottom">
-      <SafeAreaView style={styles.container}>
+    <SafeAreaView style={styles.container}>
       <View style={styles.header}>
         <View style={styles.headerTop}>
           <View style={styles.headerActions}>
             <TouchableOpacity 
-              style={styles.testButton} 
-              onPress={testNotification}
-              disabled={!isInitialized}
+              style={styles.notificationButton} 
+              onPress={navigateToNotifications}
             >
               <Bell size={20} color="white" />
             </TouchableOpacity>
@@ -378,15 +368,16 @@ if (!fontsLoaded) {
 
       <View style={styles.content}>
         <TaskTable category={activeTab} onEditTask={handleEditTask} />
+        
+        {/* إعلان فيديو - 3 ثواني */}
+        <ShortAdManager 
+          triggerText="إعلان فيديو - 3 ثواني"
+          onAdCompleted={() => {
+            console.log('🎬 تم عرض الفيديو بنجاح!');
+          }}
+        />
       </View>
 
-        {/* إعلان البانر - مؤقتاً معطل */}
-        {/* <AdManager
-          showBanner={true}
-          showRewardedVideo={false}
-          bannerPosition="bottom"
-          style={styles.adContainer}
-        /> */}
 
       <TouchableOpacity
         style={styles.fab}
@@ -410,7 +401,6 @@ if (!fontsLoaded) {
           editTask={editingTask || undefined}
         />
       </Modal>
-      </SafeAreaView>
-    </AdManager>
+    </SafeAreaView>
   );
 }

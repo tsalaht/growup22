@@ -40,7 +40,7 @@
         "foregroundImage": "./assets/images/images/logo2.png",
         "backgroundColor": "#ffffff"
       },
-       "versionCode": 4,
+      "versionCode": 4,
       "package": "com.ibrahim.grow",
       "edgeToEdgeEnabled": true,
       "permissions": [
@@ -97,9 +97,9 @@
         "origin": "https://rork.com/"
       },
       "eas": {
-        "projectId": "cbc271cc-5e26-421f-a6c6-c92898be0de2"
+        "projectId": "74a18a19-b8f3-4e2b-a91e-fec7c6839c33"
       }
     },
-    "owner": "salaheddinetabet00"
+    "owner": "alcaranoisco"
   }
 }

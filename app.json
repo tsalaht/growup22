@@ -3,7 +3,7 @@
     "name": "growUp",
     "entryPoint": "./app/entry.ts",
     "slug": "grow",
-    "version": "1.0.0",
+    "version": "1.0.3",
     "orientation": "portrait",
     "icon": "./assets/images/images/logo2.png",
     "scheme": "myapp",
@@ -40,6 +40,7 @@
         "foregroundImage": "./assets/images/images/logo2.png",
         "backgroundColor": "#ffffff"
       },
+       "versionCode": 4,
       "package": "com.ibrahim.grow",
       "edgeToEdgeEnabled": true,
       "permissions": [

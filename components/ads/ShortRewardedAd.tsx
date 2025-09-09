@@ -75,7 +75,7 @@ export default function ShortRewardedAd({
         if (IS_DEVELOPMENT) {
           console.log('❌ Short Rewarded Ad error:', error);
         }
-        Alert.alert('عذراً', 'فشل في تحميل الإعلان');
+        // Don't show error to user, just close the ad
         onClose();
       });
 

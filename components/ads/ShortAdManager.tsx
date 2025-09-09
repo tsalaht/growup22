@@ -36,11 +36,8 @@ export default function ShortAdManager({
     setTotalViews(prev => prev + 1);
     onAdCompleted?.();
     
-    Alert.alert(
-      'شكراً لك! 🎉',
-      `تم عرض الفيديو بنجاح!\nإجمالي المشاهدات: ${totalViews + 1}`,
-      [{ text: 'حسناً', style: 'default' }]
-    );
+    // Don't show alert to user, just complete the ad
+    console.log('Short ad completed successfully');
   };
 
   const styles = StyleSheet.create({

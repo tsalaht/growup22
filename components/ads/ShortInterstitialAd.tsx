@@ -76,7 +76,7 @@ export default function ShortInterstitialAd({
         if (IS_DEVELOPMENT) {
           console.log('❌ Short Interstitial Ad error:', error);
         }
-        Alert.alert('عذراً', 'فشل في تحميل الإعلان');
+        // Don't show error to user, just close the ad
         onClose();
       });
 

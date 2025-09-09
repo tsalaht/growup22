@@ -75,19 +75,20 @@
       [
         "expo-notifications",
         {
-          "icon": "./assets/images/images/logo2.png",
+          "icon": "./local/assets/notification_icon.png",
           "color": "#ffffff",
           "defaultChannel": "default",
           "enableBackgroundRemoteNotifications": false
         }
       ],
-      [
-        "react-native-google-mobile-ads",
-        {
-          "androidAppId": "ca-app-pub-1029952950379935~5001861185",
-          "iosAppId": "ca-app-pub-1029952950379935~7295538955"
-        }
-      ]
+       [
+         "react-native-google-mobile-ads",
+         {
+      "androidAppId": "ca-app-pub-3940256099942544~3347511713",
+      "iosAppId": "ca-app-pub-3940256099942544~1458002511",
+      "userTrackingUsageDescription": "This identifier will be used to deliver personalized ads to you."
+         }
+       ]
     ],
     "experiments": {
       "typedRoutes": true

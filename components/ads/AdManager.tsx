@@ -34,6 +34,17 @@ export default function AdManager({ children }: AdManagerProps) {
 
   const initializeAds = async () => {
     try {
+      // Set test device IDs for development
+      if (IS_DEVELOPMENT) {
+        await mobileAds().setRequestConfiguration({
+          testDeviceIdentifiers: ['EMULATOR'],
+          maxAdContentRating: mobileAds.MaxAdContentRating.G,
+          tagForChildDirectedTreatment: false,
+          tagForUnderAgeOfConsent: false,
+        });
+      }
+      
+      // Initialize with proper error handling
       const adapterStatuses = await mobileAds().initialize();
       setIsInitialized(true);
       
@@ -41,9 +52,16 @@ export default function AdManager({ children }: AdManagerProps) {
         console.log('✅ Google Mobile Ads initialized:', adapterStatuses);
       }
 
-      // Load ads after initialization
-      InterstitialAdManager.getInstance().loadAd();
-      RewardedAdManager.getInstance().loadAd();
+      // Load ads after initialization with delay
+      setTimeout(() => {
+        try {
+          InterstitialAdManager.getInstance().loadAd();
+          RewardedAdManager.getInstance().loadAd();
+        } catch (loadError) {
+          console.error('Error loading ads:', loadError);
+        }
+      }, 1000);
+      
     } catch (error) {
       console.error('❌ Error initializing Google Mobile Ads:', error);
       // Don't crash the app, just disable ads

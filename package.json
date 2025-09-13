@@ -8,7 +8,9 @@
     "start-web-dev": "DEBUG=expo* bunx rork start -p 8q9yokykln96agji40xz3 --web --tunnel",
     "lint": "expo lint",
     "android": "expo run:android",
-    "ios": "expo run:ios"
+    "ios": "expo run:ios",
+    "build:production": "eas build --platform android --profile production",
+    "build:preview": "eas build --platform android --profile preview"
   },
   "dependencies": {
     "@expo-google-fonts/tajawal": "^0.4.0",

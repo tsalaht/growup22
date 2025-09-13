@@ -11,12 +11,11 @@ import {
   Alert,
   Platform,
   I18nManager,
+  StatusBar,
 } from 'react-native';
 import { useTheme } from '@/contexts/ThemeContext';
 import { useGoals, goalTypes, Goal } from '@/contexts/GoalsContext';
 import { Target, ChevronDown, Plus, Minus, Calendar, DollarSign } from 'lucide-react-native';
-import { RewardedAdManager } from '@/components/ads/AdManager';
-import ShortAdManager from '@/components/ads/ShortAdManager';
 import {
   useFonts,
   Tajawal_400Regular,
@@ -36,26 +35,6 @@ export default function GoalsPage() {
   const { theme } = useTheme();
   const { goals, addGoal, addToGoalSavings, withdrawFromGoalSavings, calculateTimeToGoal, getGoalProgress } = useGoals();
 
-  // Show rewarded ad when adding to goal savings
-  const showRewardedAdForGoal = async () => {
-    try {
-      RewardedAdManager.getInstance().setCallbacks({
-        onRewardEarned: (reward) => {
-          Alert.alert('تهانينا!', `لقد حصلت على ${reward.amount} ${reward.type} لإضافة مبلغ إضافي لهدفك!`);
-        },
-        onAdClosed: () => {
-          console.log('Rewarded ad closed');
-        },
-        onAdFailedToLoad: (error) => {
-          console.log('Rewarded ad failed to load:', error);
-        },
-      });
-
-      await RewardedAdManager.getInstance().showAd();
-    } catch (error) {
-      console.log('Error showing rewarded ad:', error);
-    }
-  };
   
   const [selectedGoalType, setSelectedGoalType] = useState('');
   const [goalName, setGoalName] = useState('');
@@ -140,8 +119,6 @@ if (!fontsLoaded) {
     try {
       if (action === 'add') {
         await addToGoalSavings(selectedGoalForSavings.id, amount);
-        // Show rewarded ad after adding to goal savings
-        await showRewardedAdForGoal();
         Alert.alert('نجح', 'تم إضافة المبلغ بنجاح!');
       } else {
         await withdrawFromGoalSavings(selectedGoalForSavings.id, amount);
@@ -161,21 +138,19 @@ if (!fontsLoaded) {
   };
 
   return (
-    <SafeAreaView style={[styles.container, { backgroundColor: theme.colors.background }]}>
-      <View style={styles.header}>
-        <Text style={[styles.headerTitle, { color: theme.colors.text }]}>
-          🎯 أهدافي الكبرى
-        </Text>
-      </View>
+    <View style={[styles.container, { backgroundColor: theme.colors.background }]}>
+      <StatusBar 
+        barStyle={theme.isDark ? 'light-content' : 'dark-content'} 
+        backgroundColor={theme.colors.surface}
+      />
+      <SafeAreaView style={styles.safeArea}>
+        <View style={styles.header}>
+          <Text style={[styles.headerTitle, { color: theme.colors.text }]}>
+            🎯 أهدافي الكبرى
+          </Text>
+        </View>
 
       <ScrollView style={styles.content} showsVerticalScrollIndicator={false}>
-        {/* إعلان فيديو - 3 ثواني */}
-        {/* <ShortAdManager 
-          triggerText="إعلان فيديو - 3 ثواني"
-          onAdCompleted={() => {
-            console.log('🎬 تم عرض الفيديو بنجاح!');
-          }}
-        /> */}
         
         {/* Add New Goal Form */}
         <View style={[styles.formCard, { backgroundColor: theme.colors.surface }]}>
@@ -538,7 +513,10 @@ if (!fontsLoaded) {
           </View>
         </View>
       </Modal>
-    </SafeAreaView>
+
+      {/* Bottom padding to avoid content under custom banner below tab bar */}
+      </SafeAreaView>
+    </View>
   );
 }
 
@@ -546,10 +524,15 @@ const styles = StyleSheet.create({
   container: {
     flex: 1,
   },
+  safeArea: {
+    flex: 1,
+  },
   header: {
     paddingHorizontal: 20,
-    paddingVertical: 16,
+    paddingVertical: Platform.OS === 'android' ? 12 : 16,
+    paddingTop: Platform.OS === 'android' ? 8 : 16,
     alignItems: 'center',
+    backgroundColor: '#F8FAFC',
   },
   headerTitle: {
     fontSize: 24,
@@ -784,13 +767,3 @@ const styles = StyleSheet.create({
     fontFamily: "Tajawal_700Bold",
   },
 });
-
-// Add ShortAdManager component
-const ShortAdManagerComponent = () => (
-  <ShortAdManager 
-    triggerText="إعلان فيديو - 3 ثواني"
-    onAdCompleted={() => {
-      console.log('🎬 تم عرض الفيديو بنجاح!');
-    }}
-  />
-);

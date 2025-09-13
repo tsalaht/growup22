@@ -173,7 +173,13 @@ export const [NotesProvider, useNotes] = createContextHook(() => {
         );
         setNotes(updatedNotes);
         await saveNotes(updatedNotes);
-        console.log('✅ تم تعيين تذكير ذكي للملاحظة:', noteTitle);
+        console.log('✅ تم تعيين تذكير ذكي للملاحظة:', {
+          title: noteTitle,
+          reminderTime: note.reminder.date.toLocaleString('ar-SA'),
+          notificationId
+        });
+      } else {
+        console.log('⚠️ فشل في جدولة التذكير للملاحظة:', noteTitle);
       }
     } catch (error) {
       console.log('Error setting smart reminder:', error);

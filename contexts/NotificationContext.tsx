@@ -135,9 +135,9 @@ export const [NotificationProvider, useNotifications] = createContextHook(() => 
     // Smart notification scheduling based on activity
     await scheduleSmartNotificationsBasedOnActivity(section, data);
     
-    // Check for conditional notifications every 30 minutes
+    // Check for conditional notifications every 2 hours (less frequent)
     const timeSinceLastCheck = now.getTime() - lastActivityCheck.getTime();
-    if (timeSinceLastCheck > 30 * 60 * 1000) { // 30 minutes
+    if (timeSinceLastCheck > 2 * 60 * 60 * 1000) { // 2 hours
       await NotificationService.checkAndSendConditionalNotifications();
       setLastActivityCheck(now);
     }
@@ -310,10 +310,14 @@ export const [NotificationProvider, useNotifications] = createContextHook(() => 
         lastLogin: new Date()
       });
       
-      // Check for conditional notifications
-      await NotificationService.checkAndSendConditionalNotifications();
+      // Check for conditional notifications only if it's been a while since last check
+      const timeSinceLastCheck = Date.now() - lastActivityCheck.getTime();
+      if (timeSinceLastCheck > 60 * 60 * 1000) { // 1 hour
+        await NotificationService.checkAndSendConditionalNotifications();
+        setLastActivityCheck(new Date());
+      }
     }
-  }, []);
+  }, [lastActivityCheck]);
 
   // Initialize on mount
   useEffect(() => {

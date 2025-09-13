@@ -24,7 +24,6 @@ import { FinanceProvider } from "@/contexts/FinanceContext";
 import { GoalsProvider } from "@/contexts/GoalsContext";
 import { NotesProvider } from "@/contexts/NotesContext";
 import { NotificationProvider } from "@/contexts/NotificationContext";
-import AdManager from "@/components/ads/AdManager";
 import * as Updates from 'expo-updates';
 
 // Services
@@ -156,9 +155,7 @@ export default function RootLayout() {
                   <FinanceProvider>
                     <GoalsProvider>
                       <NotesProvider>
-                        <AdManager>
-                          <RootLayoutNav />
-                        </AdManager>
+                        <RootLayoutNav />
                       </NotesProvider>
                     </GoalsProvider>
                   </FinanceProvider>

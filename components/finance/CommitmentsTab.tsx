@@ -3,7 +3,8 @@ import { StyledText } from '@/components/StyledText';
 import { useTheme } from '@/contexts/ThemeContext';
 import { useFinance } from '@/contexts/FinanceContext';
 import { Obligation } from '@/services/ApiService';
-import { Plus, Home, Car, GraduationCap, Heart, Trash2, Calendar } from 'lucide-react-native';
+import NotificationService from '@/services/NotificationService';
+import { Plus, Home, Car, GraduationCap, Heart, Trash2 } from 'lucide-react-native';
 
 import { View, ScrollView, TextInput, TouchableOpacity, StyleSheet, Alert, KeyboardAvoidingView, Platform ,Modal} from 'react-native';
 
@@ -12,7 +13,7 @@ const obligationTypes = [
   { id: 'CAR_INSTALLMENT', icon: '🚗', name: 'قسط سيارة', component: Car },
   { id: 'HOUSE_INSTALLMENT', icon: '🏘️', name: 'قسط منزل', component: Home },
   { id: 'INVITATION', icon: '🎉', name: 'عزومة', component: Heart },
-  { id: 'FIXED_MONTHLY', icon: '📅', name: 'التزام شهري ثابت', component: Calendar },
+  { id: 'FIXED_MONTHLY', icon: '📅', name: 'التزام شهري ثابت', component: Home },
   { id: 'OTHER', icon: '📦', name: 'أخرى', component: Plus },
 ];
 
@@ -27,6 +28,116 @@ export default function CommitmentsTab() {
   const [obligationNote, setObligationNote] = useState('');
   const [selectedType, setSelectedType] = useState(obligationTypes[0]);
   const [isLoading, setIsLoading] = useState(false);
+  
+  // حقول التاريخ المنفصلة
+  const [day, setDay] = useState('');
+  const [month, setMonth] = useState('');
+  const [year, setYear] = useState('');
+  
+
+  // دالة لجدولة إشعارات الالتزام
+  const scheduleObligationNotifications = async (obligationName: string, obligationDate: string, amount: number) => {
+    try {
+      const obligationDateObj = new Date(obligationDate);
+      const now = new Date();
+      
+      // إشعار قبل 3 أيام من موعد الالتزام
+      const reminder3Days = new Date(obligationDateObj);
+      reminder3Days.setDate(reminder3Days.getDate() - 3);
+      reminder3Days.setHours(18, 0, 0, 0); // 6 PM
+      
+      // إشعار قبل يوم واحد من موعد الالتزام
+      const reminder1Day = new Date(obligationDateObj);
+      reminder1Day.setDate(reminder1Day.getDate() - 1);
+      reminder1Day.setHours(18, 0, 0, 0); // 6 PM
+      
+      // إشعار في يوم الالتزام نفسه
+      const dayOfObligation = new Date(obligationDateObj);
+      dayOfObligation.setHours(9, 0, 0, 0); // 9 AM
+      
+      // جدولة الإشعارات
+      if (reminder3Days > now) {
+        await NotificationService.scheduleSmartNotification({
+          id: `obligation_reminder_3days_${Date.now()}`,
+          type: 'finance',
+          title: 'تذكير بالالتزام المالي',
+          body: `باقي 3 أيام على موعد التزام: ${obligationName} - ${amount.toLocaleString()} ${currency}`,
+          scheduledTime: reminder3Days,
+          repeat: 'none'
+        });
+        console.log('✅ تم جدولة إشعار قبل 3 أيام');
+      }
+      
+      if (reminder1Day > now) {
+        await NotificationService.scheduleSmartNotification({
+          id: `obligation_reminder_1day_${Date.now()}`,
+          type: 'finance',
+          title: 'تذكير بالالتزام المالي',
+          body: `غداً موعد التزام: ${obligationName} - ${amount.toLocaleString()} ${currency}`,
+          scheduledTime: reminder1Day,
+          repeat: 'none'
+        });
+        console.log('✅ تم جدولة إشعار قبل يوم واحد');
+      }
+      
+      if (dayOfObligation > now) {
+        await NotificationService.scheduleSmartNotification({
+          id: `obligation_today_${Date.now()}`,
+          type: 'finance',
+          title: 'موعد الالتزام اليوم',
+          body: `اليوم موعد التزام: ${obligationName} - ${amount.toLocaleString()} ${currency}`,
+          scheduledTime: dayOfObligation,
+          repeat: 'none'
+        });
+        console.log('✅ تم جدولة إشعار في يوم الالتزام');
+      }
+      
+      console.log('✅ تم جدولة جميع إشعارات الالتزام المالي');
+    } catch (error) {
+      console.error('خطأ في جدولة إشعار الالتزام:', error);
+    }
+  };
+
+  // دالة لدمج التاريخ بصيغة مرتبة
+  const combineDate = () => {
+    if (day && month && year) {
+      const formattedDay = day.padStart(2, '0');
+      const formattedMonth = month.padStart(2, '0');
+      return `${year}-${formattedMonth}-${formattedDay}`;
+    }
+    return '';
+  };
+
+  // دالة للتحقق من صحة التاريخ
+  const validateDate = () => {
+    const dayNum = parseInt(day);
+    const monthNum = parseInt(month);
+    const yearNum = parseInt(year);
+
+    if (!day || !month || !year) {
+      return { isValid: false, message: 'يرجى إدخال اليوم والشهر والسنة' };
+    }
+
+    if (dayNum < 1 || dayNum > 31) {
+      return { isValid: false, message: 'اليوم يجب أن يكون بين 1 و 31' };
+    }
+
+    if (monthNum < 1 || monthNum > 12) {
+      return { isValid: false, message: 'الشهر يجب أن يكون بين 1 و 12' };
+    }
+
+    if (yearNum < 2024 || yearNum > 2030) {
+      return { isValid: false, message: 'السنة يجب أن تكون بين 2024 و 2030' };
+    }
+
+    // التحقق من صحة اليوم في الشهر المحدد
+    const daysInMonth = new Date(yearNum, monthNum, 0).getDate();
+    if (dayNum > daysInMonth) {
+      return { isValid: false, message: `الشهر ${monthNum} يحتوي على ${daysInMonth} يوم فقط` };
+    }
+
+    return { isValid: true, message: '' };
+  };
 
   const handleAddObligation = async () => {
     if (!obligationName.trim()) {
@@ -39,8 +150,10 @@ export default function CommitmentsTab() {
       return;
     }
 
-    if (!obligationDate.trim()) {
-      Alert.alert('خطأ', 'يرجى إدخال تاريخ الالتزام');
+    // التحقق من صحة التاريخ
+    const dateValidation = validateDate();
+    if (!dateValidation.isValid) {
+      Alert.alert('خطأ', dateValidation.message);
       return;
     }
 
@@ -52,17 +165,24 @@ export default function CommitmentsTab() {
 
     try {
       setIsLoading(true);
-      await addObligation(obligationName, amount, obligationDate, obligationNote);
+      const formattedDate = combineDate();
+      await addObligation(obligationName, amount, formattedDate, obligationNote);
+      
+      // جدولة إشعارات الالتزام
+      await scheduleObligationNotifications(obligationName, formattedDate, amount);
       
       // Reset form
       setObligationName('');
       setObligationAmount('');
       setObligationDate('');
       setObligationNote('');
+      setDay('');
+      setMonth('');
+      setYear('');
       setSelectedType(obligationTypes[0]);
       setShowModal(false);
       
-      Alert.alert('نجح', 'تم إضافة الالتزام بنجاح');
+      Alert.alert('نجح', 'تم إضافة الالتزام بنجاح! 🔔\n\nسيتم تذكيرك قبل موعد الالتزام');
     } catch (error) {
       console.error('Error adding obligation:', error);
       Alert.alert('خطأ', 'حدث خطأ أثناء إضافة الالتزام');
@@ -111,6 +231,25 @@ export default function CommitmentsTab() {
       day: 'numeric',
     });
   };
+
+  // دالة للتحقق من الالتزامات القادمة
+  const isUpcomingObligation = (dateString: string) => {
+    const obligationDate = new Date(dateString);
+    const today = new Date();
+    const diffTime = obligationDate.getTime() - today.getTime();
+    const diffDays = Math.ceil(diffTime / (1000 * 60 * 60 * 24));
+    return diffDays >= 0 && diffDays <= 7; // الالتزامات القادمة خلال 7 أيام
+  };
+
+  // دالة لحساب عدد الأيام المتبقية
+  const getDaysUntilObligation = (dateString: string) => {
+    const obligationDate = new Date(dateString);
+    const today = new Date();
+    const diffTime = obligationDate.getTime() - today.getTime();
+    const diffDays = Math.ceil(diffTime / (1000 * 60 * 60 * 24));
+    return diffDays;
+  };
+
 
   const totalObligations = obligations.reduce((sum, o) => sum + o.amount, 0);
 
@@ -167,18 +306,44 @@ export default function CommitmentsTab() {
         ) : (
           obligations.map((obligation) => {
             const typeInfo = obligationTypes.find(t => t.id === obligation.name);
+            const isUpcoming = isUpcomingObligation(obligation.date);
+            const daysUntil = getDaysUntilObligation(obligation.date);
             return (
               <View
                 key={obligation.id}
-                style={[styles.commitmentCard, { backgroundColor: theme.colors.surface }]}
+                style={[
+                  styles.commitmentCard, 
+                  { 
+                    backgroundColor: theme.colors.surface,
+                    // تمييز الالتزامات القادمة
+                    borderWidth: isUpcoming ? 2 : 1,
+                    borderColor: isUpcoming ? '#FF6B35' : theme.colors.border,
+                    shadowColor: isUpcoming ? '#FF6B35' : '#000',
+                    shadowOffset: { width: 0, height: isUpcoming ? 4 : 2 },
+                    shadowOpacity: isUpcoming ? 0.3 : 0.1,
+                    shadowRadius: isUpcoming ? 8 : 4,
+                    elevation: isUpcoming ? 6 : 3,
+                  }
+                ]}
               >
                 <View style={styles.commitmentHeader}>
                   <View style={styles.commitmentInfo}>
                     <StyledText style={styles.commitmentIcon}>{typeInfo?.icon || '📦'}</StyledText>
                     <View style={styles.commitmentDetails}>
-                      <StyledText style={[styles.commitmentName, { color: theme.colors.text }]}>
-                        {getTypeLabel(obligation.name)}
-                      </StyledText>
+                      <View style={styles.commitmentTitleRow}>
+                        <StyledText style={[styles.commitmentName, { color: theme.colors.text }]}>
+                          {getTypeLabel(obligation.name)}
+                        </StyledText>
+                        {isUpcoming && (
+                          <View style={styles.upcomingBadge}>
+                            <StyledText style={styles.upcomingText}>
+                              {daysUntil === 0 ? 'اليوم' : 
+                               daysUntil === 1 ? 'غداً' : 
+                               `باقي ${daysUntil} أيام`}
+                            </StyledText>
+                          </View>
+                        )}
+                      </View>
                       <StyledText style={[styles.commitmentType, { color: theme.colors.textSecondary }]}>
                         {formatDate(obligation.date)} • {obligation.note}
                       </StyledText>
@@ -314,25 +479,116 @@ export default function CommitmentsTab() {
               textAlign="right"
             />
 
-            {/* Date Input */}
+            {/* Date Input - Manual Entry */}
             <StyledText style={[styles.fieldLabel, { color: theme.colors.text }]}>
               تاريخ الالتزام
             </StyledText>
-            <TextInput
-              style={[
-                styles.modalInput,
-                {
-                  backgroundColor: theme.colors.surface,
-                  borderColor: theme.colors.border,
-                  color: theme.colors.text,
-                }
-              ]}
-              placeholder="YYYY-MM-DD"
-              placeholderTextColor={theme.colors.textSecondary}
-              value={obligationDate}
-              onChangeText={setObligationDate}
-              textAlign="right"
-            />
+            <View style={styles.dateInputContainer}>
+              <View style={styles.dateField}>
+                <StyledText style={[styles.dateFieldLabel, { color: theme.colors.text }]}>
+                  اليوم
+                </StyledText>
+                <TextInput
+                  style={[
+                    styles.dateInput,
+                    {
+                      backgroundColor: theme.colors.surface,
+                      borderColor: day ? '#4CAF50' : theme.colors.border,
+                      color: theme.colors.text,
+                    }
+                  ]}
+                  placeholder="15"
+                  placeholderTextColor={theme.colors.textSecondary}
+                  value={day}
+                  onChangeText={(text) => {
+                    // التحقق من أن النص يحتوي على أرقام فقط
+                    if (/^\d*$/.test(text) && text.length <= 2) {
+                      setDay(text);
+                    }
+                  }}
+                  keyboardType="numeric"
+                  maxLength={2}
+                  textAlign="center"
+                />
+                <StyledText style={[styles.dateFieldHint, { color: theme.colors.textSecondary }]}>
+                  1-31
+                </StyledText>
+              </View>
+
+              <View style={styles.dateField}>
+                <StyledText style={[styles.dateFieldLabel, { color: theme.colors.text }]}>
+                  الشهر
+                </StyledText>
+                <TextInput
+                  style={[
+                    styles.dateInput,
+                    {
+                      backgroundColor: theme.colors.surface,
+                      borderColor: month ? '#4CAF50' : theme.colors.border,
+                      color: theme.colors.text,
+                    }
+                  ]}
+                  placeholder="01"
+                  placeholderTextColor={theme.colors.textSecondary}
+                  value={month}
+                  onChangeText={(text) => {
+                    // التحقق من أن النص يحتوي على أرقام فقط
+                    if (/^\d*$/.test(text) && text.length <= 2) {
+                      setMonth(text);
+                    }
+                  }}
+                  keyboardType="numeric"
+                  maxLength={2}
+                  textAlign="center"
+                />
+                <StyledText style={[styles.dateFieldHint, { color: theme.colors.textSecondary }]}>
+                  1-12
+                </StyledText>
+              </View>
+
+              <View style={styles.dateField}>
+                <StyledText style={[styles.dateFieldLabel, { color: theme.colors.text }]}>
+                  السنة
+                </StyledText>
+                <TextInput
+                  style={[
+                    styles.dateInput,
+                    {
+                      backgroundColor: theme.colors.surface,
+                      borderColor: year ? '#4CAF50' : theme.colors.border,
+                      color: theme.colors.text,
+                    }
+                  ]}
+                  placeholder="2024"
+                  placeholderTextColor={theme.colors.textSecondary}
+                  value={year}
+                  onChangeText={(text) => {
+                    // التحقق من أن النص يحتوي على أرقام فقط
+                    if (/^\d*$/.test(text) && text.length <= 4) {
+                      setYear(text);
+                    }
+                  }}
+                  keyboardType="numeric"
+                  maxLength={4}
+                  textAlign="center"
+                />
+                <StyledText style={[styles.dateFieldHint, { color: theme.colors.textSecondary }]}>
+                  2024-2030
+                </StyledText>
+              </View>
+            </View>
+
+            {/* Date Preview */}
+            {day && month && year && (
+              <View style={styles.datePreviewContainer}>
+                <StyledText style={[styles.datePreviewLabel, { color: theme.colors.text }]}>
+                  معاينة التاريخ:
+                </StyledText>
+                <StyledText style={[styles.datePreviewText, { color: '#4CAF50' }]}>
+                  {combineDate()}
+                </StyledText>
+              </View>
+            )}
 
             {/* Note Input */}
             <StyledText style={[styles.fieldLabel, { color: theme.colors.text }]}>
@@ -375,6 +631,8 @@ export default function CommitmentsTab() {
           </ScrollView>
         </View>
       </Modal>
+
+
     </View>
   );
 }
@@ -604,5 +862,75 @@ const styles = StyleSheet.create({
   saveButtonText: {
     fontSize: 16,
     textAlign: 'center',
+  },
+  dateInputContainer: {
+    flexDirection: 'row',
+    justifyContent: 'space-between',
+    gap: 12,
+    marginBottom: 16,
+  },
+  dateField: {
+    flex: 1,
+    alignItems: 'center',
+  },
+  dateFieldLabel: {
+    fontSize: 14,
+    fontWeight: '600',
+    marginBottom: 8,
+    textAlign: 'center',
+  },
+  dateInput: {
+    width: '100%',
+    height: 50,
+    borderWidth: 1,
+    borderRadius: 12,
+    paddingHorizontal: 12,
+    fontSize: 16,
+    fontWeight: '600',
+    textAlign: 'center',
+    marginBottom: 4,
+  },
+  dateFieldHint: {
+    fontSize: 10,
+    textAlign: 'center',
+    fontStyle: 'italic',
+  },
+  datePreviewContainer: {
+    backgroundColor: '#F8F9FA',
+    paddingVertical: 12,
+    paddingHorizontal: 16,
+    borderRadius: 12,
+    marginBottom: 16,
+    borderWidth: 1,
+    borderColor: '#E9ECEF',
+    alignItems: 'center',
+  },
+  datePreviewLabel: {
+    fontSize: 12,
+    fontWeight: '600',
+    marginBottom: 4,
+    textAlign: 'center',
+  },
+  datePreviewText: {
+    fontSize: 18,
+    fontWeight: 'bold',
+    textAlign: 'center',
+  },
+  commitmentTitleRow: {
+    flexDirection: 'row',
+    alignItems: 'center',
+    justifyContent: 'space-between',
+    marginBottom: 4,
+  },
+  upcomingBadge: {
+    backgroundColor: '#FF6B35',
+    paddingHorizontal: 8,
+    paddingVertical: 2,
+    borderRadius: 10,
+  },
+  upcomingText: {
+    color: '#FFFFFF',
+    fontSize: 10,
+    fontWeight: 'bold',
   },
 });

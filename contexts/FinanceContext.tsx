@@ -248,7 +248,7 @@ export const [FinanceProvider, useFinance] = createContextHook(() => {
       console.error('Error adding income:', error);
       throw error;
     }
-  }, [trackFinanceActivity, saveIncomes]);
+  }, [incomes, trackFinanceActivity, saveIncomes]);
 
   const addExpense = useCallback(async (name: string, amount: number, category: string) => {
     try {
@@ -268,6 +268,7 @@ export const [FinanceProvider, useFinance] = createContextHook(() => {
         const updatedExpenses = [...expenses, newExpense];
         setExpenses(updatedExpenses);
         await AsyncStorage.setItem(STORAGE_KEYS.EXPENSES, JSON.stringify(updatedExpenses));
+        console.log('✅ تم حفظ المصروف محلياً وتحديث القائمة');
         return;
       }
       
@@ -313,7 +314,7 @@ export const [FinanceProvider, useFinance] = createContextHook(() => {
       console.error('Error adding expense:', error);
       throw error;
     }
-  }, [trackFinanceActivity, scheduleMonthEndReport]);
+  }, [expenses, trackFinanceActivity, scheduleMonthEndReport]);
 
   const addObligation = useCallback(async (name: string, amount: number, date: string, note: string) => {
     try {
@@ -384,7 +385,7 @@ export const [FinanceProvider, useFinance] = createContextHook(() => {
       console.error('Error adding obligation:', error);
       throw error;
     }
-  }, [trackFinanceActivity, scheduleMonthEndReport]);
+  }, [obligations, trackFinanceActivity, scheduleMonthEndReport]);
 
   const deleteExpense = useCallback(async (id: string) => {
     try {
@@ -433,7 +434,7 @@ export const [FinanceProvider, useFinance] = createContextHook(() => {
       console.error('Error deleting expense:', error);
       throw error;
     }
-  }, [trackFinanceActivity]);
+  }, [expenses, trackFinanceActivity]);
 
   const deleteObligation = useCallback(async (id: string) => {
     try {
@@ -482,7 +483,7 @@ export const [FinanceProvider, useFinance] = createContextHook(() => {
       console.error('Error deleting obligation:', error);
       throw error;
     }
-  }, [trackFinanceActivity]);
+  }, [obligations, trackFinanceActivity]);
 
   const getMonthlyOverview = useCallback(async (month: number, year: number): Promise<MonthlyOverview> => {
     try {

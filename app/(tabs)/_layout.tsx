@@ -1,7 +1,10 @@
 import { Tabs } from 'expo-router';
 import React from 'react';
 import { View, Text } from 'react-native';
-import { StyleSheet } from 'react-native'; // Explicitly import StyleSheet
+import { BottomTabBar } from '@react-navigation/bottom-tabs';
+import type { BottomTabBarProps } from '@react-navigation/bottom-tabs';
+import BannerAdComponent from '@/components/ads/BannerAd';
+import { StyleSheet } from 'react-native';
 import { useTheme } from '@/contexts/ThemeContext';
 import { Calendar, DollarSign, Target, FileText, User } from 'lucide-react-native';
 import {
@@ -11,7 +14,6 @@ import {
   Tajawal_500Medium,
 } from '@expo-google-fonts/tajawal';
 
-// Custom Tab Bar Icon Component
 const CustomTabBarIcon = ({
   icon: Icon,
   color,
@@ -55,7 +57,7 @@ const CustomTabBarLabel = ({ label, focused }: { label: string; focused: boolean
     <Text
       style={{
         fontSize: 11,
-        fontFamily: 'Tajawal_700Bold', // Use loaded font
+        fontFamily: 'Tajawal_700Bold',
         color: focused ? '#2E7D32' : '#6B7280',
         marginTop: 4,
         textAlign: 'center',
@@ -67,7 +69,6 @@ const CustomTabBarLabel = ({ label, focused }: { label: string; focused: boolean
 };
 
 export default function TabLayout() {
-  // Load all hooks first
   const [fontsLoaded] = useFonts({
     Tajawal_400Regular,
     Tajawal_700Bold,
@@ -75,7 +76,6 @@ export default function TabLayout() {
   });
   const { theme } = useTheme();
 
-  // Check fontsLoaded after all hooks
   if (!fontsLoaded) {
     return (
       <View style={styles.loadingContainer}>
@@ -84,8 +84,21 @@ export default function TabLayout() {
     );
   }
 
+  const CustomTabBar = (props: BottomTabBarProps) => {
+    return (
+      <View style={styles.tabBarContainer}>
+        <View style={styles.bannerContainer}>
+          <BannerAdComponent style={styles.bannerAd} />
+        </View>
+        
+        <BottomTabBar {...props} />
+      </View>
+    );
+  };
+
   return (
     <Tabs
+      tabBar={(props) => <CustomTabBar {...props} />}
       screenOptions={{
         headerShown: false,
         tabBarActiveTintColor: '#2E7D32',
@@ -94,8 +107,9 @@ export default function TabLayout() {
           backgroundColor: '#FFFFFF',
           borderTopColor: '#E5E7EB',
           borderTopWidth: 1,
-          height: 80,
-          paddingBottom: 10,
+          // ✅ ارتفاع طبيعي للتاب بار
+          height: 80, // بدلاً من 140
+          paddingBottom: 8, // بدلاً من 60
           paddingTop: 8,
           paddingHorizontal: 8,
           shadowColor: '#000',
@@ -192,5 +206,18 @@ const styles = StyleSheet.create({
     fontSize: 16,
     fontFamily: 'Tajawal_500Medium',
     color: '#6B7280',
+  },
+  tabBarContainer: {
+    backgroundColor: 'transparent',
+  },
+  bannerContainer: {
+    height: 50,
+    backgroundColor: 'white',
+    borderTopWidth: 1,
+    borderTopColor: '#E5E7EB',
+  },
+  bannerAd: {
+    flex: 1,
+    backgroundColor: 'white',
   },
 });

@@ -15,8 +15,6 @@ import { useTasks, Task } from '@/contexts/TaskContext';
 import { useAuth } from '@/contexts/AuthContext';
 import { useNotifications } from '@/contexts/NotificationContext';
 import { Redirect, router } from 'expo-router';
-import { InterstitialAdManager, RewardedAdManager } from '@/components/ads/AdManager';
-import ShortAdManager from '@/components/ads/ShortAdManager';
 import TaskTable from '@/components/TaskTable';
 import TaskForm from '@/components/TaskForm';
 import { LinearGradient } from 'expo-linear-gradient';
@@ -59,18 +57,6 @@ export default function DailyTasksScreen() {
     router.push('/notifications');
   };
 
-  // Show ads when tasks are completed
-  const showAdOnTaskCompletion = async () => {
-    try {
-      // Show interstitial ad every 3rd task completion
-      const completedTasks = tasks.filter(task => task.status === 'completed').length;
-      if (completedTasks > 0 && completedTasks % 3 === 0) {
-        await InterstitialAdManager.getInstance().showAd();
-      }
-    } catch (error) {
-      console.log('Error showing ad on task completion:', error);
-    }
-  };
 
   const dailyTasks = getTasksByCategory('daily');
   const weeklyTasks = getTasksByCategory('weekly');
@@ -102,8 +88,6 @@ export default function DailyTasksScreen() {
   const handleToggleTask = async (taskId: string) => {
     try {
       await toggleTask(taskId);
-      // Show ad after task completion
-      await showAdOnTaskCompletion();
     } catch (error) {
       console.error('Error toggling task:', error);
       Alert.alert('خطأ', 'حدث خطأ أثناء تحديث حالة المهمة');
@@ -369,13 +353,6 @@ if (!fontsLoaded) {
       <View style={styles.content}>
         <TaskTable category={activeTab} onEditTask={handleEditTask} />
         
-        {/* إعلان فيديو - 3 ثواني */}
-        <ShortAdManager 
-          triggerText="إعلان فيديو - 3 ثواني"
-          onAdCompleted={() => {
-            console.log('🎬 تم عرض الفيديو بنجاح!');
-          }}
-        />
       </View>
 
 

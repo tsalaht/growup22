@@ -1,4 +1,4 @@
-import React, { useState } from 'react';
+import React, { useState, useEffect, useRef } from 'react';
 import {
   View,
   Text,
@@ -13,6 +13,8 @@ import {
   I18nManager,
   PanResponder,
   Dimensions,
+  StatusBar,
+  Platform,
 } from 'react-native';
 import { useTheme } from '@/contexts/ThemeContext';
 import { useNotes, noteCategories, Note } from '@/contexts/NotesContext';
@@ -52,8 +54,16 @@ import {
   Tajawal_700Bold,
   Tajawal_500Medium,
 } from '@expo-google-fonts/tajawal';
+import { 
+  InterstitialAd, 
+  AdEventType, 
+  TestIds 
+} from 'react-native-google-mobile-ads';
 
-
+// إنشاء إعلان بيني
+const interstitialAdUnitId = __DEV__ 
+  ? TestIds.INTERSTITIAL 
+  : 'ca-app-pub-1029952950379935/3838675529'; 
 
 const { width: screenWidth, height: screenHeight } = Dimensions.get('window');
 
@@ -540,6 +550,16 @@ function ReminderModal({ visible, onClose, onSave, initialReminder }: ReminderMo
       date: reminderData.date.toLocaleString('ar-SA'),
       repeat: reminderData.repeat
     });
+    
+    if (enabled) {
+      const timeUntilReminder = Math.round((selectedDate.getTime() - Date.now()) / 1000 / 60);
+      if (timeUntilReminder > 0) {
+        console.log(`⏰ سيتم تذكيرك خلال ${timeUntilReminder} دقيقة`);
+      } else {
+        console.log('⚠️ وقت التذكير في الماضي، سيتم إظهاره فوراً');
+      }
+    }
+    
     onSave(reminderData);
     onClose();
   };
@@ -580,6 +600,18 @@ function ReminderModal({ visible, onClose, onSave, initialReminder }: ReminderMo
         <View style={[styles.modalContent, { backgroundColor: theme.colors.surface }]}>
           <View style={styles.modalHeader}>
             <Text style={[styles.modalTitle, { color: theme.colors.text }]}>إعدادات التذكير</Text>
+            {enabled && (
+              <Text style={[styles.modalSubtitle, { color: theme.colors.textSecondary }]}>
+                سيتم تذكيرك في: {selectedDate.toLocaleString('ar-SA', {
+                  year: 'numeric',
+                  month: 'long',
+                  day: 'numeric',
+                  hour: '2-digit',
+                  minute: '2-digit',
+                  hour12: true
+                })}
+              </Text>
+            )}
             <TouchableOpacity onPress={onClose}>
               <X size={24} color={theme.colors.text} />
             </TouchableOpacity>
@@ -911,10 +943,117 @@ export default function NotesPage() {
   const [redoStack, setRedoStack] = useState<string[]>([]);
   const [showDateTimePicker, setShowDateTimePicker] = useState(false);
   const [selectedDateTime, setSelectedDateTime] = useState(new Date());
+  
+  // حالات الإعلان
+  const [isAdLoaded, setIsAdLoaded] = useState(false);
+  const [isAdLoading, setIsAdLoading] = useState(false);
+  const [noteSaved, setNoteSaved] = useState(false);
+
+  // استخدام useRef للاحتفاظ بمرجع الإعلان
+  const interstitialRef = useRef<InterstitialAd | null>(null);
 
   const filteredNotes = filter
     ? getFilteredNotes({ category: filter === 'all' ? undefined : filter })
     : notes;
+
+  // تحميل الإعلان عند تحميل المكون
+  useEffect(() => {
+    initializeInterstitialAd();
+    
+    return () => {
+      if (interstitialRef.current) {
+        interstitialRef.current.removeAllListeners();
+      }
+    };
+  }, []);
+
+  // دالة إنشاء وتحميل الإعلان
+  const initializeInterstitialAd = () => {
+    if (isAdLoading || interstitialRef.current) return;
+    
+    console.log('بدء تحميل الإعلان...');
+    setIsAdLoading(true);
+    
+    try {
+      // إنشاء إعلان جديد
+      const interstitial = InterstitialAd.createForAdRequest(interstitialAdUnitId, {
+        requestNonPersonalizedAdsOnly: true,
+        keywords: ['notes', 'writing', 'productivity'],
+      });
+      
+      interstitialRef.current = interstitial;
+
+      // إضافة مستمعين لأحداث الإعلان
+      const unsubscribeLoaded = interstitial.addAdEventListener(
+        AdEventType.LOADED,
+        () => {
+          console.log('✅ تم تحميل الإعلان بنجاح');
+          setIsAdLoaded(true);
+          setIsAdLoading(false);
+        }
+      );
+
+      const unsubscribeError = interstitial.addAdEventListener(
+        AdEventType.ERROR,
+        (error) => {
+          console.log('❌ خطأ في تحميل الإعلان:', error);
+          setIsAdLoaded(false);
+          setIsAdLoading(false);
+        }
+      );
+
+      const unsubscribeClosed = interstitial.addAdEventListener(
+        AdEventType.CLOSED,
+        () => {
+          console.log('تم إغلاق الإعلان - إغلاق النافذة المنبثقة');
+          setIsAdLoaded(false);
+          // إغلاق النافذة المنبثقة بعد إغلاق الإعلان
+          if (noteSaved) {
+            setShowAddModal(false);
+          }
+        }
+      );
+
+      const unsubscribeOpened = interstitial.addAdEventListener(
+        AdEventType.OPENED,
+        () => {
+          console.log('تم فتح الإعلان');
+        }
+      );
+
+      // بدء تحميل الإعلان
+      interstitial.load();
+
+    } catch (error) {
+      console.log('خطأ في إنشاء الإعلان:', error);
+      setIsAdLoading(false);
+    }
+  };
+
+  // دالة عرض الإعلان
+  const showInterstitialAd = async (): Promise<boolean> => {
+    return new Promise((resolve) => {
+      if (!interstitialRef.current) {
+        console.log('لا يوجد إعلان متاح');
+        resolve(false);
+        return;
+      }
+
+      if (isAdLoaded) {
+        console.log('عرض الإعلان...');
+        try {
+          interstitialRef.current.show();
+          resolve(true);
+        } catch (error) {
+          console.log('خطأ في عرض الإعلان:', error);
+          resolve(false);
+        }
+      } else {
+        console.log('الإعلان غير جاهز للعرض، الحالة:', { isAdLoaded, isAdLoading });
+        resolve(false);
+      }
+    });
+  };
 
   const handleAddNote = () => {
     setEditingNote(null);
@@ -998,9 +1137,23 @@ export default function NotesPage() {
       if (editingNote) {
         await updateNote(editingNote.id, noteData);
         console.log('✅ تم تحديث الملاحظة بنجاح');
+        // إغلاق فوري للتحديث
+        setShowAddModal(false);
       } else {
         await addNote(noteData);
         console.log('✅ تم إضافة الملاحظة بنجاح');
+        setNoteSaved(true);
+        
+        // محاولة عرض الإعلان
+        const adShown = await showInterstitialAd();
+        
+        if (adShown) {
+          console.log('✅ تم عرض الإعلان - سيتم إغلاق النافذة المنبثقة عند إغلاق الإعلان');
+          // لا نغلق النافذة المنبثقة هنا، سيتم إغلاقها في مستمع AdEventType.CLOSED
+        } else {
+          console.log('❌ لم يتم عرض الإعلان - إغلاق النافذة المنبثقة فوراً');
+          setShowAddModal(false);
+        }
       }
       
       // Reset form
@@ -1010,8 +1163,6 @@ export default function NotesPage() {
       setSelectedImages([]);
       setCurrentReminder(undefined);
       setEditingNote(null);
-      
-      setShowAddModal(false);
     } catch (error) {
       console.error('خطأ في حفظ الملاحظة:', error);
       Alert.alert('خطأ', 'حدث خطأ أثناء حفظ الملاحظة');
@@ -1064,17 +1215,69 @@ export default function NotesPage() {
   };
 
   const renderNoteCard = (note: Note) => (
-    <View key={note.id} style={[styles.noteCard, { backgroundColor: theme.colors.surface }]}>
+    <View key={note.id} style={[
+      styles.noteCard, 
+      { 
+        backgroundColor: note.reminder?.enabled ? '#F8FFF8' : theme.colors.surface,
+        // تمييز الملاحظات التي تحتوي على تذكير
+        borderWidth: note.reminder?.enabled ? 3 : 1,
+        borderColor: note.reminder?.enabled ? '#4CAF50' : theme.colors.border,
+        shadowColor: note.reminder?.enabled ? '#4CAF50' : '#000',
+        shadowOffset: { 
+          width: 0, 
+          height: note.reminder?.enabled ? 6 : 2 
+        },
+        shadowOpacity: note.reminder?.enabled ? 0.4 : 0.1,
+        shadowRadius: note.reminder?.enabled ? 12 : 4,
+        elevation: note.reminder?.enabled ? 8 : 3,
+        transform: note.reminder?.enabled ? [{ scale: 1.03 }] : [{ scale: 1 }],
+      }
+    ]}>
+      {/* أيقونة التذكير في الزاوية العلوية */}
+      {note.reminder?.enabled && (
+        <View style={styles.reminderTopBadge}>
+          <Bell size={16} color="#FFFFFF" />
+        </View>
+      )}
       <View style={styles.noteHeader}>
-        <View style={styles.noteCategory}>
+        <View style={[
+          styles.noteCategory,
+          note.reminder?.enabled && {
+            backgroundColor: '#E8F5E8',
+            paddingHorizontal: 8,
+            paddingVertical: 4,
+            borderRadius: 12,
+            borderWidth: 1,
+            borderColor: '#74dfa2',
+          }
+        ]}>
           {getCategoryIcon(note.category)}
-          <Text style={[styles.categoryText, { color: note.color }]}>
+          <Text style={[
+            styles.categoryText, 
+            { 
+              // تمييز تصنيف الملاحظة التي تحتوي على تذكير
+              color: note.reminder?.enabled ? '#052814' : note.color,
+              fontFamily: note.reminder?.enabled ? 'Tajawal_700Bold' : 'Tajawal_500Medium',
+            }
+          ]}>
             {noteCategories[note.category].label}
           </Text>
         </View>
         <View style={styles.noteActions}>
           {note.reminder?.enabled && (
-            <View style={styles.reminderBadge}>
+            <View style={[
+              styles.reminderBadge,
+              {
+                backgroundColor: '#E8F5E8',
+                borderWidth: 2,
+                borderColor: '#74dfa2',
+                shadowColor: '#4CAF50',
+                shadowOffset: { width: 0, height: 2 },
+                shadowOpacity: 0.2,
+                shadowRadius: 4,
+                elevation: 3,
+              }
+            ]}>
               <Bell size={14} color="#052814" />
               <Text style={styles.reminderBadgeText}>
                 {note.reminder.date.toLocaleDateString('ar-SA', { 
@@ -1094,12 +1297,33 @@ export default function NotesPage() {
       </View>
 
       {note.title && (
-        <Text style={[styles.noteTitle, { color: theme.colors.text }]}>
-          {note.title}
-        </Text>
+        <View style={styles.noteTitleContainer}>
+          <Text style={[
+            styles.noteTitle, 
+            { 
+              // تمييز عنوان الملاحظة التي تحتوي على تذكير
+              color: note.reminder?.enabled ? '#052814' : theme.colors.text,
+              fontFamily: 'Tajawal_700Bold',
+            }
+          ]}>
+            {note.title}
+          </Text>
+          {note.reminder?.enabled && (
+            <View style={styles.reminderIndicator}>
+              <Bell size={12} color="#74dfa2" />
+            </View>
+          )}
+        </View>
       )}
 
-      <Text style={[styles.noteContent, { color: theme.colors.textSecondary }]} numberOfLines={3}>
+      <Text style={[
+        styles.noteContent, 
+        { 
+          // تمييز محتوى الملاحظة التي تحتوي على تذكير
+          color: note.reminder?.enabled ? '#052814' : theme.colors.textSecondary,
+          fontFamily: note.reminder?.enabled ? 'Tajawal_500Medium' : 'Tajawal_400Regular',
+        }
+      ]} numberOfLines={3}>
         {note.content}
       </Text>
 
@@ -1149,30 +1373,67 @@ export default function NotesPage() {
         </View>
       )}
 
-      <View style={styles.noteDateContainer}>
-        <Text style={[styles.noteDate, { color: theme.colors.textSecondary }]}>
+      <View style={[
+        styles.noteDateContainer,
+        note.reminder?.enabled && {
+          backgroundColor: '#E8F5E8',
+          paddingHorizontal: 12,
+          paddingVertical: 8,
+          borderRadius: 8,
+          borderWidth: 1,
+          borderColor: '#74dfa2',
+        }
+      ]}>
+        <Text style={[
+          styles.noteDate, 
+          { 
+            // تمييز تاريخ الملاحظة التي تحتوي على تذكير
+            color: note.reminder?.enabled ? '#052814' : theme.colors.textSecondary,
+            fontFamily: note.reminder?.enabled ? 'Tajawal_500Medium' : 'Tajawal_400Regular',
+          }
+        ]}>
           {note.createdAt.toLocaleDateString('ar-SA')}
         </Text>
         {note.reminder?.enabled && (
-          <Text style={[styles.reminderTime, { color: '#052814' }]}>
-            🔔 {note.reminder.date.toLocaleTimeString('ar-SA', { 
-              hour: '2-digit', 
-              minute: '2-digit',
-              hour12: true 
-            })}
-          </Text>
+          <View style={[
+            styles.reminderTimeContainer,
+            {
+              backgroundColor: '#4CAF50',
+              borderWidth: 2,
+              borderColor: '#2E7D32',
+              shadowColor: '#4CAF50',
+              shadowOffset: { width: 0, height: 3 },
+              shadowOpacity: 0.4,
+              shadowRadius: 6,
+              elevation: 5,
+            }
+          ]}>
+            <Bell size={14} color="#FFFFFF" />
+            <Text style={[styles.reminderTime, { color: '#FFFFFF', fontWeight: 'bold' }]}>
+              {note.reminder.date.toLocaleTimeString('ar-SA', { 
+                hour: '2-digit', 
+                minute: '2-digit',
+                hour12: true 
+              })}
+            </Text>
+          </View>
         )}
       </View>
     </View>
   );
 
   return (
-    <SafeAreaView style={[styles.container, { backgroundColor: theme.colors.background }]}>
-      <View style={styles.header}>
-        <Text style={[styles.headerTitle, { color: theme.colors.text }]}>
-          الملاحظات
-        </Text>
-      </View>
+    <View style={[styles.container, { backgroundColor: theme.colors.background }]}>
+      <StatusBar 
+        barStyle={theme.isDark ? 'light-content' : 'dark-content'} 
+        backgroundColor={theme.colors.surface}
+      />
+      <SafeAreaView style={styles.safeArea}>
+        <View style={styles.header}>
+          <Text style={[styles.headerTitle, { color: theme.colors.text }]}>
+            الملاحظات
+          </Text>
+        </View>
 
       <View style={styles.filterContainer}>
         <ScrollView horizontal showsHorizontalScrollIndicator={false}>
@@ -1306,6 +1567,20 @@ export default function NotesPage() {
           </View>
 
           <ScrollView style={styles.modalBody}>
+            {/* عرض حالة الإعلان في وضع التطوير */}
+            {__DEV__ && !editingNote && (
+              <View style={[styles.adStatusContainer, { backgroundColor: theme.colors.surface }]}>
+                <Text style={[styles.adStatusText, { color: theme.colors.textSecondary }]}>
+                  حالة الإعلان: {isAdLoading ? '⏳ جاري التحميل...' : isAdLoaded ? '✅ جاهز للعرض' : '❌ غير متاح'}
+                </Text>
+                {noteSaved && (
+                  <Text style={[styles.adStatusText, { color: theme.colors.primary }]}>
+                    تم حفظ الملاحظة - في انتظار عرض الإعلان
+                  </Text>
+                )}
+              </View>
+            )}
+
             <TextInput
               style={[styles.titleInput, { backgroundColor: theme.colors.surface, color: theme.colors.text }]}
               placeholder="عنوان الملاحظة..."
@@ -1415,10 +1690,10 @@ export default function NotesPage() {
               style={[
                 styles.actionButton, 
                 { 
-                  backgroundColor: '#FFF3E0',
+                  backgroundColor: currentReminder?.enabled ? '#E8F5E8' : '#FFF3E0',
                   borderWidth: 2,
-                  borderColor: '#FFCC02',
-                  shadowColor: '#FF9800',
+                  borderColor: currentReminder?.enabled ? '#4CAF50' : '#FFCC02',
+                  shadowColor: currentReminder?.enabled ? '#4CAF50' : '#FF9800',
                   shadowOffset: { width: 0, height: 3 },
                   shadowOpacity: 0.2,
                   shadowRadius: 6,
@@ -1437,8 +1712,10 @@ export default function NotesPage() {
                 setShowReminderModal(true);
               }}
             >
-              <Clock size={22} color="#F57C00" />
-              <Text style={[styles.actionButtonText, { color: '#F57C00' }]}>تذكير</Text>
+              <Clock size={22} color={currentReminder?.enabled ? "#4CAF50" : "#F57C00"} />
+              <Text style={[styles.actionButtonText, { color: currentReminder?.enabled ? "#4CAF50" : "#F57C00" }]}>
+                {currentReminder?.enabled ? 'تذكير مفعل' : 'تذكير'}
+              </Text>
             </TouchableOpacity>
             <TouchableOpacity 
               style={[
@@ -1512,13 +1789,77 @@ export default function NotesPage() {
       <ReminderModal
         visible={showReminderModal}
         onClose={() => setShowReminderModal(false)}
-        onSave={(reminder) => {
+        onSave={async (reminder) => {
           console.log('💾 حفظ إعدادات التذكير:', {
             enabled: reminder.enabled,
             date: reminder.date.toLocaleString('ar-SA'),
             repeat: reminder.repeat
           });
           setCurrentReminder(reminder);
+          
+          // Auto-save the note when reminder is set
+          if (title.trim() || content.trim()) {
+            try {
+              const categoryData = noteCategories[selectedCategory];
+              
+              // Ensure reminder date is properly formatted if it exists
+              let processedReminder = reminder;
+              if (reminder.enabled && reminder.date) {
+                processedReminder = {
+                  ...reminder,
+                  date: new Date(reminder.date) // Ensure it's a proper Date object
+                };
+              }
+
+              const noteData = {
+                title: title.trim(),
+                content: content.trim(),
+                category: selectedCategory,
+                color: categoryData.color,
+                icon: categoryData.icon,
+                images: selectedImages,
+                reminder: processedReminder,
+              };
+
+              if (editingNote) {
+                await updateNote(editingNote.id, noteData);
+                console.log('✅ تم تحديث الملاحظة مع التذكير بنجاح');
+                Alert.alert('نجح', `تم تحديث الملاحظة مع التذكير بنجاح! 🔔\n\nسيتم تذكيرك في:\n${processedReminder.date.toLocaleString('ar-SA', {
+                  year: 'numeric',
+                  month: 'long',
+                  day: 'numeric',
+                  hour: '2-digit',
+                  minute: '2-digit',
+                  hour12: true
+                })}`);
+              } else {
+                await addNote(noteData);
+                console.log('✅ تم إضافة الملاحظة مع التذكير بنجاح');
+                Alert.alert('نجح', `تم إضافة الملاحظة مع التذكير بنجاح! 🔔\n\nسيتم تذكيرك في:\n${processedReminder.date.toLocaleString('ar-SA', {
+                  year: 'numeric',
+                  month: 'long',
+                  day: 'numeric',
+                  hour: '2-digit',
+                  minute: '2-digit',
+                  hour12: true
+                })}`);
+              }
+              
+              // Reset form and close modals
+              setTitle('');
+              setContent('');
+              setSelectedCategory('other');
+              setSelectedImages([]);
+              setCurrentReminder(undefined);
+              setEditingNote(null);
+              setShowAddModal(false);
+              setShowReminderModal(false);
+              
+            } catch (error) {
+              console.error('خطأ في حفظ الملاحظة مع التذكير:', error);
+              Alert.alert('خطأ', 'حدث خطأ أثناء حفظ الملاحظة مع التذكير');
+            }
+          }
         }}
         initialReminder={currentReminder}
       />
@@ -1592,7 +1933,10 @@ export default function NotesPage() {
           </View>
         </Modal>
       )}
-    </SafeAreaView>
+
+      {/* Bottom padding to avoid content under custom banner below tab bar */}
+      </SafeAreaView>
+    </View>
   );
 }
 
@@ -1600,10 +1944,15 @@ const styles = StyleSheet.create({
   container: {
     flex: 1,
   },
+  safeArea: {
+    flex: 1,
+  },
   header: {
     paddingHorizontal: 20,
-    paddingVertical: 16,
+    paddingVertical: Platform.OS === 'android' ? 12 : 16,
+    paddingTop: Platform.OS === 'android' ? 8 : 16,
     alignItems: 'center',
+    backgroundColor: '#F8FAFC',
   },
   headerTitle: {
     fontSize: 24,
@@ -1682,11 +2031,25 @@ const styles = StyleSheet.create({
     gap: 12,
     alignItems: 'center',
   },
+  noteTitleContainer: {
+    flexDirection: 'row',
+    alignItems: 'center',
+    justifyContent: 'space-between',
+    marginBottom: 8,
+  },
   noteTitle: {
     fontSize: 16,
     fontFamily: 'Tajawal_700Bold',
-    marginBottom: 8,
     textAlign: 'right',
+    flex: 1,
+  },
+  reminderIndicator: {
+    backgroundColor: '#E8F5E8',
+    borderRadius: 10,
+    padding: 4,
+    marginLeft: 8,
+    borderWidth: 1,
+    borderColor: '#74dfa2',
   },
   noteContent: {
     fontSize: 14,
@@ -1756,6 +2119,12 @@ const styles = StyleSheet.create({
   modalTitle: {
     fontSize: 18,
     fontFamily: 'Tajawal_700Bold',
+  },
+  modalSubtitle: {
+    fontSize: 14,
+    fontFamily: 'Tajawal_400Regular',
+    marginTop: 4,
+    textAlign: 'center',
   },
   modalBody: {
     flex: 1,
@@ -2238,6 +2607,25 @@ const styles = StyleSheet.create({
     borderWidth: 1,
     borderColor: '#74dfa2',
   },
+  reminderTopBadge: {
+    position: 'absolute',
+    top: -8,
+    right: -8,
+    backgroundColor: '#4CAF50',
+    borderRadius: 20,
+    width: 40,
+    height: 40,
+    justifyContent: 'center',
+    alignItems: 'center',
+    zIndex: 10,
+    shadowColor: '#4CAF50',
+    shadowOffset: { width: 0, height: 4 },
+    shadowOpacity: 0.6,
+    shadowRadius: 8,
+    elevation: 8,
+    borderWidth: 3,
+    borderColor: '#FFFFFF',
+  },
   reminderBadgeText: {
     fontSize: 10,
     fontFamily: 'Tajawal_500Medium',
@@ -2250,14 +2638,16 @@ const styles = StyleSheet.create({
     marginTop: 8,
   },
   reminderTime: {
-    fontSize: 11,
-    fontFamily: 'Tajawal_500Medium',
-    backgroundColor: '#E8F5E8',
-    paddingHorizontal: 8,
-    paddingVertical: 4,
-    borderRadius: 8,
-    borderWidth: 1,
-    borderColor: '#74dfa2',
+    fontSize: 12,
+    fontFamily: 'Tajawal_700Bold',
+  },
+  reminderTimeContainer: {
+    flexDirection: 'row',
+    alignItems: 'center',
+    paddingHorizontal: 10,
+    paddingVertical: 6,
+    borderRadius: 15,
+    gap: 6,
   },
   // Image Editor Styles
   imageEditorContainer: {
@@ -2475,5 +2865,15 @@ const styles = StyleSheet.create({
   },
   noteOverlayText: {
     fontFamily: 'Tajawal_500Medium',
+  },
+  adStatusContainer: {
+    padding: 10,
+    borderRadius: 8,
+    marginBottom: 16,
+    alignItems: 'center',
+  },
+  adStatusText: {
+    fontSize: 12,
+    fontFamily: 'Tajawal_400Regular',
   },
 });

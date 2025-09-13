@@ -1,4 +1,4 @@
-import React, { useState } from 'react';
+import React, { useState, useEffect, useRef } from 'react';
 import {
   View,
   Text,
@@ -22,6 +22,16 @@ import {
   Tajawal_700Bold,
   Tajawal_500Medium,
 } from '@expo-google-fonts/tajawal';
+import { 
+  InterstitialAd, 
+  AdEventType, 
+  TestIds 
+} from 'react-native-google-mobile-ads';
+
+// إنشاء إعلان بيني
+const interstitialAdUnitId = __DEV__ 
+  ? TestIds.INTERSTITIAL 
+  : 'ca-app-pub-1029952950379935/3838675529'; 
 
 interface TaskFormProps {
   category: 'daily' | 'weekly' | 'monthly';
@@ -30,11 +40,12 @@ interface TaskFormProps {
 }
 
 export default function TaskForm({ category, onClose, editTask }: TaskFormProps) {
-    const [fontsLoaded] = useFonts({
-      Tajawal_400Regular,
-      Tajawal_700Bold,
-      Tajawal_500Medium,
-    });
+  const [fontsLoaded] = useFonts({
+    Tajawal_400Regular,
+    Tajawal_700Bold,
+    Tajawal_500Medium,
+  });
+  
   const [title, setTitle] = useState(editTask?.title || '');
   const [description, setDescription] = useState(editTask?.description || '');
   const [priority, setPriority] = useState<'low' | 'medium' | 'high'>(editTask?.priority || 'medium');
@@ -46,15 +57,126 @@ export default function TaskForm({ category, onClose, editTask }: TaskFormProps)
   const [selectedIcon, setSelectedIcon] = useState(editTask?.icon || '📝');
   const [showTimePicker, setShowTimePicker] = useState(false);
   const [showDatePicker, setShowDatePicker] = useState(false);
+  
+  // حالات الإعلان
+  const [isAdLoaded, setIsAdLoaded] = useState(false);
+  const [isAdLoading, setIsAdLoading] = useState(false);
+  const [taskSaved, setTaskSaved] = useState(false);
+
+  const { theme } = useTheme();
+  const { addTask, updateTask } = useTasks();
+  
+  // استخدام useRef للاحتفاظ بمرجع الإعلان
+  const interstitialRef = useRef<InterstitialAd | null>(null);
+
+  // تحميل الإعلان عند تحميل المكون
+  useEffect(() => {
+    if (!editTask) { // فقط للمهام الجديدة
+      initializeInterstitialAd();
+    }
+    
+    return () => {
+      if (interstitialRef.current) {
+        interstitialRef.current.removeAllListeners();
+      }
+    };
+  }, [editTask]);
+
+  // دالة إنشاء وتحميل الإعلان
+  const initializeInterstitialAd = () => {
+    if (isAdLoading || interstitialRef.current) return;
+    
+    console.log('بدء تحميل الإعلان...');
+    setIsAdLoading(true);
+    
+    try {
+      // إنشاء إعلان جديد
+      const interstitial = InterstitialAd.createForAdRequest(interstitialAdUnitId, {
+        requestNonPersonalizedAdsOnly: true,
+        keywords: ['productivity', 'tasks', 'planning'],
+      });
+      
+      interstitialRef.current = interstitial;
+
+      // إضافة مستمعين لأحداث الإعلان
+      const unsubscribeLoaded = interstitial.addAdEventListener(
+        AdEventType.LOADED,
+        () => {
+          console.log('✅ تم تحميل الإعلان بنجاح');
+          setIsAdLoaded(true);
+          setIsAdLoading(false);
+        }
+      );
+
+      const unsubscribeError = interstitial.addAdEventListener(
+        AdEventType.ERROR,
+        (error) => {
+          console.log('❌ خطأ في تحميل الإعلان:', error);
+          setIsAdLoaded(false);
+          setIsAdLoading(false);
+        }
+      );
+
+      const unsubscribeClosed = interstitial.addAdEventListener(
+        AdEventType.CLOSED,
+        () => {
+          console.log('تم إغلاق الإعلان - إغلاق النموذج');
+          setIsAdLoaded(false);
+          // إغلاق النموذج بعد إغلاق الإعلان
+          if (taskSaved) {
+            onClose();
+          }
+        }
+      );
+
+      const unsubscribeOpened = interstitial.addAdEventListener(
+        AdEventType.OPENED,
+        () => {
+          console.log('تم فتح الإعلان');
+        }
+      );
+
+      // بدء تحميل الإعلان
+      interstitial.load();
+
+    } catch (error) {
+      console.log('خطأ في إنشاء الإعلان:', error);
+      setIsAdLoading(false);
+    }
+  };
+
+  // دالة عرض الإعلان
+  const showInterstitialAd = async (): Promise<boolean> => {
+    return new Promise((resolve) => {
+      if (!interstitialRef.current) {
+        console.log('لا يوجد إعلان متاح');
+        resolve(false);
+        return;
+      }
+
+      if (isAdLoaded) {
+        console.log('عرض الإعلان...');
+        try {
+          interstitialRef.current.show();
+          resolve(true);
+        } catch (error) {
+          console.log('خطأ في عرض الإعلان:', error);
+          resolve(false);
+        }
+      } else {
+        console.log('الإعلان غير جاهز للعرض، الحالة:', { isAdLoaded, isAdLoading });
+        resolve(false);
+      }
+    });
+  };
+
   if (!fontsLoaded) {
     return (
-      <View >
-        <Text >جاري تحميل الخطوط...</Text>
+      <View>
+        <Text>جاري تحميل الخطوط...</Text>
       </View>
     );
   }
-  const { theme } = useTheme();
-  const { addTask, updateTask } = useTasks();
 
   const handleTemplateSelect = (template: TaskTemplate) => {
     setTitle(template.title);
@@ -96,15 +218,30 @@ export default function TaskForm({ category, onClose, editTask }: TaskFormProps)
 
     try {
       console.log('TaskForm: Submitting task data:', taskData);
+      
       if (editTask) {
+        // تحديث مهمة موجودة
         console.log('TaskForm: Updating existing task');
         await updateTask(editTask.id, taskData);
+        onClose(); // إغلاق فوري للتحديث
       } else {
+        // إضافة مهمة جديدة
         console.log('TaskForm: Adding new task');
         await addTask(taskData);
+        setTaskSaved(true);
+        
+        // محاولة عرض الإعلان
+        const adShown = await showInterstitialAd();
+        
+        if (adShown) {
+          console.log('✅ تم عرض الإعلان - سيتم إغلاق النموذج عند إغلاق الإعلان');
+          // لا نغلق النموذج هنا، سيتم إغلاقه في مستمع AdEventType.CLOSED
+        } else {
+          console.log('❌ لم يتم عرض الإعلان - إغلاق النموذج فوراً');
+          onClose();
+        }
       }
-      console.log('TaskForm: Task saved successfully, closing form');
-      onClose();
+      
     } catch (error) {
       console.error('TaskForm: Error saving task:', error);
       Alert.alert('خطأ', 'حدث خطأ أثناء حفظ المهمة');
@@ -305,7 +442,7 @@ export default function TaskForm({ category, onClose, editTask }: TaskFormProps)
       alignItems: 'center',
       marginTop: 20,
       marginHorizontal: 20,
-backgroundColor:theme.colors.primary,
+      backgroundColor: theme.colors.primary,
     },
     submitButtonText: {
       color: '#FFFFFF',
@@ -335,6 +472,18 @@ backgroundColor:theme.colors.primary,
       fontSize: 14,
       fontFamily: 'Tajawal_500Medium',
     },
+    adStatusContainer: {
+      padding: 10,
+      backgroundColor: theme.colors.surface,
+      borderRadius: 8,
+      marginBottom: 16,
+      alignItems: 'center',
+    },
+    adStatusText: {
+      fontSize: 12,
+      color: theme.colors.textSecondary,
+      fontFamily: 'Tajawal_400Regular',
+    },
   });
 
   return (
@@ -353,6 +502,20 @@ backgroundColor:theme.colors.primary,
         contentContainerStyle={styles.scrollContent}
         showsVerticalScrollIndicator={false}
       >
+        {/* عرض حالة الإعلان في وضع التطوير */}
+        {__DEV__ && !editTask && (
+          <View style={styles.adStatusContainer}>
+            <Text style={styles.adStatusText}>
+              حالة الإعلان: {isAdLoading ? '⏳ جاري التحميل...' : isAdLoaded ? '✅ جاهز للعرض' : '❌ غير متاح'}
+            </Text>
+            {taskSaved && (
+              <Text style={[styles.adStatusText, { color: theme.colors.primary }]}>
+                تم حفظ المهمة - في انتظار عرض الإعلان
+              </Text>
+            )}
+          </View>
+        )}
+
         {!editTask && (
           <View style={styles.section}>
             <Text style={styles.label}>القوالب الجاهزة</Text>
@@ -498,20 +661,15 @@ backgroundColor:theme.colors.primary,
               onSubmitEditing={addTag}
             />
             <TouchableOpacity style={styles.addTagButton} onPress={addTag}>
-          
-                <Text style={styles.addTagButtonText}>إضافة</Text>
-            
+              <Text style={styles.addTagButtonText}>إضافة</Text>
             </TouchableOpacity>
           </View>
         </View>
 
-
         <TouchableOpacity style={styles.submitButton} onPress={handleSubmit}>
-        
-            <Text style={styles.submitButtonText}>
-              {editTask ? 'حفظ التعديلات' : 'إضافة المهمة'}
-            </Text>
-   
+          <Text style={styles.submitButtonText}>
+            {editTask ? 'حفظ التعديلات' : 'إضافة المهمة'}
+          </Text>
         </TouchableOpacity>
       </ScrollView>
 

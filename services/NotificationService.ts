@@ -289,10 +289,81 @@ class NotificationService {
     }
 
     if (isExpoGo) {
-      // Schedule local notification for Expo Go
-      this.scheduleLocalNotification(data);
-      console.log('✅ تم جدولة الإشعار الذكي (نظام محلي):', data.title);
-      return `local-${Date.now()}-${Math.random()}`;
+      // Try to use expo-notifications even in Expo Go for better reliability
+      try {
+        const hasPermission = await this.requestPermissions();
+        if (hasPermission) {
+          let trigger: any;
+          
+          if (data.repeat === 'none') {
+            trigger = { date: data.scheduledTime };
+          } else {
+            const scheduledTime = data.scheduledTime;
+            switch (data.repeat) {
+              case 'daily':
+                trigger = {
+                  hour: scheduledTime.getHours(),
+                  minute: scheduledTime.getMinutes(),
+                  repeats: true,
+                };
+                break;
+              case 'weekly':
+                trigger = {
+                  weekday: scheduledTime.getDay() + 1,
+                  hour: scheduledTime.getHours(),
+                  minute: scheduledTime.getMinutes(),
+                  repeats: true,
+                };
+                break;
+              case 'monthly':
+                trigger = {
+                  day: scheduledTime.getDate(),
+                  hour: scheduledTime.getHours(),
+                  minute: scheduledTime.getMinutes(),
+                  repeats: true,
+                };
+                break;
+              case 'yearly':
+                trigger = {
+                  month: scheduledTime.getMonth() + 1,
+                  day: scheduledTime.getDate(),
+                  hour: scheduledTime.getHours(),
+                  minute: scheduledTime.getMinutes(),
+                  repeats: true,
+                };
+                break;
+            }
+          }
+
+          const notificationId = await Notifications.scheduleNotificationAsync({
+            content: {
+              title: data.title,
+              body: data.body,
+              data: {
+                type: data.type,
+                smartNotificationId: data.id,
+                ...data.data
+              },
+              sound: true,
+            },
+            trigger,
+          });
+
+          this.scheduledSmartNotifications.set(data.id, notificationId);
+          console.log('✅ تم جدولة الإشعار الذكي (Expo Go):', data.title, 'في', data.scheduledTime.toLocaleString('ar-SA'));
+          return notificationId;
+        } else {
+          // Fallback to local notification
+          this.scheduleLocalNotification(data);
+          console.log('✅ تم جدولة الإشعار الذكي (نظام محلي):', data.title);
+          return `local-${Date.now()}-${Math.random()}`;
+        }
+      } catch (error) {
+        console.log('⚠️ فشل في جدولة الإشعار بـ Expo Go، استخدام النظام المحلي:', error);
+        this.scheduleLocalNotification(data);
+        console.log('✅ تم جدولة الإشعار الذكي (نظام محلي):', data.title);
+        return `local-${Date.now()}-${Math.random()}`;
+      }
     }
 
     try {
@@ -376,133 +447,15 @@ class NotificationService {
     }
 
     try {
-      // Only schedule notifications based on user behavior and timing
-      await this.scheduleBehaviorBasedNotifications();
+      // Only schedule welcome notification for new users
+      // Other notifications will be scheduled based on user behavior
       console.log('🎉 Smart periodic notifications setup completed!');
+      console.log('ℹ️ Notifications will be scheduled based on user activity');
     } catch (error) {
       console.error('❌ Error setting up periodic notifications:', error);
     }
   }
 
-  private async scheduleBehaviorBasedNotifications(): Promise<void> {
-    const now = new Date();
-    const user = this.userActivity!;
-    
-    // 1. Daily motivational - only if user is active (has completed tasks)
-    if (user.completedTasks > 0) {
-      const dailyTime = new Date();
-      dailyTime.setHours(9, 0, 0, 0);
-      if (dailyTime <= now) {
-        dailyTime.setDate(dailyTime.getDate() + 1);
-      }
-      
-      await this.scheduleSmartNotification({
-        id: 'daily_motivational',
-        type: 'tasks',
-        title: NOTIFICATION_MESSAGES.tasks.daily.title,
-        body: NOTIFICATION_MESSAGES.tasks.daily.body,
-        scheduledTime: dailyTime,
-        repeat: 'daily'
-      });
-      console.log('✅ Daily motivational notification scheduled (user is active)');
-    }
-
-    // 2. Weekly review - only if user has been active for 3+ days
-    const daysSinceInstall = (now.getTime() - user.appInstallDate.getTime()) / (1000 * 60 * 60 * 24);
-    if (daysSinceInstall >= 3) {
-      const weeklyTime = new Date();
-      weeklyTime.setDate(weeklyTime.getDate() + (5 - weeklyTime.getDay() + 7) % 7);
-      weeklyTime.setHours(18, 0, 0, 0);
-      
-      await this.scheduleSmartNotification({
-        id: 'weekly_review',
-        type: 'tasks',
-        title: NOTIFICATION_MESSAGES.tasks.weekly.title,
-        body: NOTIFICATION_MESSAGES.tasks.weekly.body,
-        scheduledTime: weeklyTime,
-        repeat: 'weekly'
-      });
-      console.log('✅ Weekly review notification scheduled (user active for 3+ days)');
-    }
-
-    // 3. Monthly planning - only if user has been using app for 7+ days
-    if (daysSinceInstall >= 7) {
-      const monthlyTime = new Date();
-      monthlyTime.setDate(1);
-      monthlyTime.setHours(8, 0, 0, 0);
-      if (monthlyTime <= now) {
-        monthlyTime.setMonth(monthlyTime.getMonth() + 1);
-      }
-      
-      await this.scheduleSmartNotification({
-        id: 'monthly_planning',
-        type: 'tasks',
-        title: NOTIFICATION_MESSAGES.tasks.monthly.title,
-        body: NOTIFICATION_MESSAGES.tasks.monthly.body,
-        scheduledTime: monthlyTime,
-        repeat: 'monthly'
-      });
-      console.log('✅ Monthly planning notification scheduled (user active for 7+ days)');
-    }
-
-    // 4. Finance notifications - only if user has income data
-    if (user.monthlyIncome > 0) {
-      const financeTime = new Date();
-      financeTime.setDate(1);
-      financeTime.setHours(9, 0, 0, 0);
-      if (financeTime <= now) {
-        financeTime.setMonth(financeTime.getMonth() + 1);
-      }
-      
-      await this.scheduleSmartNotification({
-        id: 'monthly_finance_start',
-        type: 'finance',
-        title: NOTIFICATION_MESSAGES.finance.monthStart.title,
-        body: NOTIFICATION_MESSAGES.finance.monthStart.body,
-        scheduledTime: financeTime,
-        repeat: 'monthly'
-      });
-      console.log('✅ Monthly finance notification scheduled (user has income data)');
-
-      // Income reminder - only if user hasn't set income recently
-      const daysSinceFinanceActivity = (now.getTime() - user.lastFinanceActivity.getTime()) / (1000 * 60 * 60 * 24);
-      if (daysSinceFinanceActivity > 3) {
-        const incomeReminderTime = new Date();
-        incomeReminderTime.setDate(5);
-        incomeReminderTime.setHours(10, 0, 0, 0);
-        if (incomeReminderTime <= now) {
-          incomeReminderTime.setMonth(incomeReminderTime.getMonth() + 1);
-        }
-        
-        await this.scheduleSmartNotification({
-          id: 'monthly_income_reminder',
-          type: 'finance',
-          title: NOTIFICATION_MESSAGES.finance.monthlyIncome.title,
-          body: NOTIFICATION_MESSAGES.finance.monthlyIncome.body,
-          scheduledTime: incomeReminderTime,
-          repeat: 'monthly'
-        });
-        console.log('✅ Monthly income reminder scheduled (user inactive in finance)');
-      }
-    }
-
-    // 5. Goals notifications - only if user has active goals
-    if (user.activeGoals > 0) {
-      const goalsTime = new Date();
-      goalsTime.setDate(goalsTime.getDate() + (7 - goalsTime.getDay()) % 7);
-      goalsTime.setHours(19, 0, 0, 0);
-      
-      await this.scheduleSmartNotification({
-        id: 'goals_weekly_review',
-        type: 'goals',
-        title: NOTIFICATION_MESSAGES.goals.weeklyReview.title,
-        body: NOTIFICATION_MESSAGES.goals.weeklyReview.body,
-        scheduledTime: goalsTime,
-        repeat: 'weekly'
-      });
-      console.log('✅ Goals weekly review scheduled (user has active goals)');
-    }
-  }
 
   async checkAndSendConditionalNotifications(): Promise<void> {
     if (!this.userActivity) {
@@ -510,41 +463,132 @@ class NotificationService {
       return;
     }
 
-    console.log('🔍 Checking smart conditional notifications...');
+    console.log('🔍 Checking smart conditional notifications based on user behavior...');
     const now = new Date();
     const daysSinceLastActivity = (now.getTime() - this.userActivity.lastLogin.getTime()) / (1000 * 60 * 60 * 24);
 
-    // 1. Check for expense warning - only if user has been using finance features
-    if (this.userActivity.monthlyIncome > 0 && this.userActivity.monthlyExpenses > this.userActivity.monthlyIncome * 0.5) {
-      console.log('💸 Expense warning triggered - expenses exceed 50% of income');
+    // Only send notifications based on specific user behavior patterns
+    await this.scheduleBehaviorBasedNotifications(now);
+    
+    console.log('✅ Smart conditional notifications check completed');
+  }
+
+  private async scheduleBehaviorBasedNotifications(now: Date): Promise<void> {
+    const user = this.userActivity!;
+    const daysSinceLastActivity = (now.getTime() - user.lastLogin.getTime()) / (1000 * 60 * 60 * 24);
+    const daysSinceInstall = (now.getTime() - user.appInstallDate.getTime()) / (1000 * 60 * 60 * 24);
+
+    // 1. Daily motivational - only if user is active and it's morning (9 AM)
+    if (user.completedTasks > 0 && now.getHours() === 9 && now.getMinutes() < 30) {
+      console.log('🌅 Scheduling daily motivational notification');
       await this.scheduleSmartNotification({
-        id: 'expense_warning',
-        type: 'finance',
-        title: NOTIFICATION_MESSAGES.finance.expenseWarning.title,
-        body: NOTIFICATION_MESSAGES.finance.expenseWarning.body,
+        id: `daily_motivational_${now.getDate()}`,
+        type: 'tasks',
+        title: NOTIFICATION_MESSAGES.tasks.daily.title,
+        body: NOTIFICATION_MESSAGES.tasks.daily.body,
         scheduledTime: new Date(now.getTime() + 5 * 60 * 1000), // 5 minutes from now
         repeat: 'none'
       });
     }
 
-    // 2. Check for inactive goals - only if user has goals and hasn't been active
-    const daysSinceGoalsActivity = (now.getTime() - this.userActivity.lastGoalsActivity.getTime()) / (1000 * 60 * 60 * 24);
-    if (daysSinceGoalsActivity > 7 && this.userActivity.activeGoals > 0) {
-      console.log('🎯 Goals inactivity detected - no activity for 7+ days');
+    // 2. Weekly review - only if it's Friday evening and user has been active
+    if (now.getDay() === 5 && now.getHours() >= 18 && user.completedTasks > 0) {
+      console.log('📅 Scheduling weekly review notification');
       await this.scheduleSmartNotification({
-        id: 'goals_inactive',
-        type: 'goals',
-        title: NOTIFICATION_MESSAGES.goals.inactive.title,
-        body: NOTIFICATION_MESSAGES.goals.inactive.body.replace('{goalName}', 'أهدافك'),
+        id: `weekly_review_${now.getDate()}`,
+        type: 'tasks',
+        title: NOTIFICATION_MESSAGES.tasks.weekly.title,
+        body: NOTIFICATION_MESSAGES.tasks.weekly.body,
         scheduledTime: new Date(now.getTime() + 10 * 60 * 1000), // 10 minutes from now
         repeat: 'none'
       });
     }
 
-    // 3. Smart motivational notifications based on user behavior
+    // 3. Monthly planning - only on 1st of month and user has been using app for 7+ days
+    if (now.getDate() === 1 && now.getHours() === 8 && daysSinceInstall >= 7) {
+      console.log('📊 Scheduling monthly planning notification');
+      await this.scheduleSmartNotification({
+        id: `monthly_planning_${now.getMonth()}`,
+        type: 'tasks',
+        title: NOTIFICATION_MESSAGES.tasks.monthly.title,
+        body: NOTIFICATION_MESSAGES.tasks.monthly.body,
+        scheduledTime: new Date(now.getTime() + 15 * 60 * 1000), // 15 minutes from now
+        repeat: 'none'
+      });
+    }
+
+    // 4. Finance notifications - only if user has income data and it's relevant time
+    if (user.monthlyIncome > 0) {
+      // Monthly finance start - on 1st of month
+      if (now.getDate() === 1 && now.getHours() === 9) {
+        console.log('💰 Scheduling monthly finance notification');
+        await this.scheduleSmartNotification({
+          id: `monthly_finance_start_${now.getMonth()}`,
+          type: 'finance',
+          title: NOTIFICATION_MESSAGES.finance.monthStart.title,
+          body: NOTIFICATION_MESSAGES.finance.monthStart.body,
+          scheduledTime: new Date(now.getTime() + 20 * 60 * 1000), // 20 minutes from now
+          repeat: 'none'
+        });
+      }
+
+      // Income reminder - only if user hasn't set income recently and it's 5th of month
+      const daysSinceFinanceActivity = (now.getTime() - user.lastFinanceActivity.getTime()) / (1000 * 60 * 60 * 24);
+      if (now.getDate() === 5 && now.getHours() === 10 && daysSinceFinanceActivity > 3) {
+        console.log('💳 Scheduling income reminder notification');
+        await this.scheduleSmartNotification({
+          id: `monthly_income_reminder_${now.getMonth()}`,
+          type: 'finance',
+          title: NOTIFICATION_MESSAGES.finance.monthlyIncome.title,
+          body: NOTIFICATION_MESSAGES.finance.monthlyIncome.body,
+          scheduledTime: new Date(now.getTime() + 25 * 60 * 1000), // 25 minutes from now
+          repeat: 'none'
+        });
+      }
+
+      // Expense warning - only if expenses exceed 50% of income
+      if (user.monthlyExpenses > user.monthlyIncome * 0.5) {
+        console.log('⚠️ Scheduling expense warning notification');
+        await this.scheduleSmartNotification({
+          id: `expense_warning_${now.getDate()}`,
+          type: 'finance',
+          title: NOTIFICATION_MESSAGES.finance.expenseWarning.title,
+          body: NOTIFICATION_MESSAGES.finance.expenseWarning.body,
+          scheduledTime: new Date(now.getTime() + 30 * 60 * 1000), // 30 minutes from now
+          repeat: 'none'
+        });
+      }
+    }
+
+    // 5. Goals notifications - only if user has active goals and it's Sunday evening
+    if (user.activeGoals > 0 && now.getDay() === 0 && now.getHours() >= 19) {
+      console.log('🎯 Scheduling goals weekly review notification');
+      await this.scheduleSmartNotification({
+        id: `goals_weekly_review_${now.getDate()}`,
+        type: 'goals',
+        title: NOTIFICATION_MESSAGES.goals.weeklyReview.title,
+        body: NOTIFICATION_MESSAGES.goals.weeklyReview.body,
+        scheduledTime: new Date(now.getTime() + 35 * 60 * 1000), // 35 minutes from now
+        repeat: 'none'
+      });
+    }
+
+    // 6. Goals inactivity - only if user has goals but hasn't been active for 7+ days
+    const daysSinceGoalsActivity = (now.getTime() - user.lastGoalsActivity.getTime()) / (1000 * 60 * 60 * 24);
+    if (daysSinceGoalsActivity > 7 && user.activeGoals > 0) {
+      console.log('🎯 Scheduling goals inactivity notification');
+      await this.scheduleSmartNotification({
+        id: `goals_inactive_${now.getDate()}`,
+        type: 'goals',
+        title: NOTIFICATION_MESSAGES.goals.inactive.title,
+        body: NOTIFICATION_MESSAGES.goals.inactive.body.replace('{goalName}', 'أهدافك'),
+        scheduledTime: new Date(now.getTime() + 40 * 60 * 1000), // 40 minutes from now
+        repeat: 'none'
+      });
+    }
+
+    // 7. Smart motivational notifications based on user behavior
     await this.scheduleSmartMotivationalNotifications();
-    
-    console.log('✅ Smart conditional notifications check completed');
   }
 
   private async scheduleSmartMotivationalNotifications(): Promise<void> {
@@ -553,46 +597,53 @@ class NotificationService {
     const daysSinceLastActivity = (now.getTime() - user.lastLogin.getTime()) / (1000 * 60 * 60 * 24);
     const daysSinceInstall = (now.getTime() - user.appInstallDate.getTime()) / (1000 * 60 * 60 * 24);
 
-    // Only send motivational notifications if user is somewhat active but not too active
-    const isModeratelyActive = user.completedTasks > 0 && user.completedTasks < 50;
+    // Only send motivational notifications at specific times and based on behavior
     const isNewUser = daysSinceInstall < 7;
     const isInactive = daysSinceLastActivity > 2;
+    const isModeratelyActive = user.completedTasks > 0 && user.completedTasks < 50;
+
+    // Only send motivational notifications during specific hours (not too early or late)
+    const isGoodTimeForMotivation = now.getHours() >= 8 && now.getHours() <= 20;
+
+    if (!isGoodTimeForMotivation) {
+      return; // Don't send motivational notifications at inappropriate times
+    }
 
     // Different motivational strategies based on user behavior
-    if (isNewUser && user.completedTasks === 0) {
-      // New user who hasn't completed any tasks - gentle encouragement
-      console.log('🌱 New user encouragement - no tasks completed yet');
-      const randomMessage = NOTIFICATION_MESSAGES.motivational[0]; // "ابدأ بنفسك" message
+    if (isNewUser && user.completedTasks === 0 && now.getHours() === 10) {
+      // New user who hasn't completed any tasks - gentle encouragement at 10 AM
+      console.log('🌱 Scheduling new user encouragement');
+      const randomMessage = NOTIFICATION_MESSAGES.motivational[0];
       await this.scheduleSmartNotification({
-        id: `new_user_encouragement_${Date.now()}`,
+        id: `new_user_encouragement_${now.getDate()}`,
         type: 'motivational',
         title: randomMessage.title,
         body: randomMessage.body,
-        scheduledTime: new Date(now.getTime() + 30 * 60 * 1000), // 30 minutes from now
+        scheduledTime: new Date(now.getTime() + 45 * 60 * 1000), // 45 minutes from now
         repeat: 'none'
       });
-    } else if (isModeratelyActive && daysSinceLastActivity > 1) {
-      // Moderately active user - maintain momentum
-      console.log('💪 Maintaining momentum for moderately active user');
+    } else if (isModeratelyActive && daysSinceLastActivity > 1 && now.getHours() === 14) {
+      // Moderately active user - maintain momentum at 2 PM
+      console.log('💪 Scheduling momentum maintenance');
       const randomMessage = NOTIFICATION_MESSAGES.motivational[Math.floor(Math.random() * NOTIFICATION_MESSAGES.motivational.length)];
       await this.scheduleSmartNotification({
-        id: `momentum_${Date.now()}`,
+        id: `momentum_${now.getDate()}`,
         type: 'motivational',
         title: randomMessage.title,
         body: randomMessage.body,
-        scheduledTime: new Date(now.getTime() + 2 * 60 * 60 * 1000), // 2 hours from now
+        scheduledTime: new Date(now.getTime() + 50 * 60 * 1000), // 50 minutes from now
         repeat: 'none'
       });
-    } else if (isInactive && user.completedTasks > 0) {
-      // Previously active user who became inactive - re-engagement
-      console.log('🔄 Re-engaging inactive user');
-      const randomMessage = NOTIFICATION_MESSAGES.motivational[2]; // "ابدأ اليوم" message
+    } else if (isInactive && user.completedTasks > 0 && now.getHours() === 16) {
+      // Previously active user who became inactive - re-engagement at 4 PM
+      console.log('🔄 Scheduling re-engagement');
+      const randomMessage = NOTIFICATION_MESSAGES.motivational[2];
       await this.scheduleSmartNotification({
-        id: `reengagement_${Date.now()}`,
+        id: `reengagement_${now.getDate()}`,
         type: 'motivational',
         title: randomMessage.title,
         body: randomMessage.body,
-        scheduledTime: new Date(now.getTime() + 4 * 60 * 60 * 1000), // 4 hours from now
+        scheduledTime: new Date(now.getTime() + 55 * 60 * 1000), // 55 minutes from now
         repeat: 'none'
       });
     }
@@ -600,6 +651,12 @@ class NotificationService {
 
   async scheduleNoteReminder(noteTitle: string, reminderTime: Date): Promise<string | null> {
     const body = NOTIFICATION_MESSAGES.notes.reminder.body.replace('{noteTitle}', noteTitle);
+    
+    console.log('📝 جدولة تذكير الملاحظة:', {
+      title: noteTitle,
+      reminderTime: reminderTime.toLocaleString('ar-SA'),
+      timeUntilReminder: Math.round((reminderTime.getTime() - Date.now()) / 1000 / 60) + ' دقيقة'
+    });
     
     return await this.scheduleSmartNotification({
       id: `note_reminder_${Date.now()}`,
@@ -970,7 +1027,14 @@ class NotificationService {
     const timeUntilNotification = data.scheduledTime.getTime() - Date.now();
     
     if (timeUntilNotification > 0) {
+      console.log('⏰ جدولة إشعار محلي:', {
+        title: data.title,
+        scheduledTime: data.scheduledTime.toLocaleString('ar-SA'),
+        timeUntilNotification: Math.round(timeUntilNotification / 1000 / 60) + ' دقيقة'
+      });
+      
       setTimeout(() => {
+        console.log('🔔 إظهار الإشعار المحلي:', data.title);
         Alert.alert(
           data.title,
           data.body,
@@ -978,6 +1042,15 @@ class NotificationService {
           { cancelable: true }
         );
       }, timeUntilNotification);
+    } else {
+      console.log('⚠️ وقت الإشعار في الماضي، سيتم إظهاره فوراً');
+      // Show immediately if time has passed
+      Alert.alert(
+        data.title,
+        data.body,
+        [{ text: 'حسناً', style: 'default' }],
+        { cancelable: true }
+      );
     }
   }
 

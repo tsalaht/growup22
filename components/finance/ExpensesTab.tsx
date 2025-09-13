@@ -1,9 +1,20 @@
-import React, { useState, useEffect } from 'react';
+import React, { useState, useEffect, useRef } from 'react';
 import { StyledText } from '@/components/StyledText';
 import { useTheme } from '@/contexts/ThemeContext';
 import { useFinance, Expense } from '@/contexts/FinanceContext';
+import type { Expense as ApiExpense } from '@/services/ApiService';
 import { Plus, Trash2, RefreshCw } from 'lucide-react-native';
 import { View, ScrollView, TextInput, TouchableOpacity, StyleSheet, Alert, KeyboardAvoidingView, Platform ,Modal} from 'react-native';
+import { 
+  InterstitialAd, 
+  AdEventType, 
+  TestIds 
+} from 'react-native-google-mobile-ads';
+
+// إنشاء إعلان بيني
+const interstitialAdUnitId = __DEV__ 
+  ? TestIds.INTERSTITIAL 
+  : 'ca-app-pub-1029952950379935/3838675529'; 
 
 const expenseCategories = [
   // طعام وشراب
@@ -71,6 +82,118 @@ export default function ExpensesTab() {
   const [isLoading, setIsLoading] = useState(false);
   const [filterCategory, setFilterCategory] = useState<string | 'all'>('all');
   const [isRefreshing, setIsRefreshing] = useState(false);
+  
+  // حالات الإعلان
+  const [isAdLoaded, setIsAdLoaded] = useState(false);
+  const [isAdLoading, setIsAdLoading] = useState(false);
+  const [expenseSaved, setExpenseSaved] = useState(false);
+
+  // استخدام useRef للاحتفاظ بمرجع الإعلان
+  const interstitialRef = useRef<InterstitialAd | null>(null);
+
+  // تحميل الإعلان عند تحميل المكون
+  useEffect(() => {
+    initializeInterstitialAd();
+    
+    return () => {
+      if (interstitialRef.current) {
+        interstitialRef.current.removeAllListeners();
+      }
+    };
+  }, []);
+
+  // دالة إنشاء وتحميل الإعلان
+  const initializeInterstitialAd = () => {
+    if (isAdLoading || interstitialRef.current) return;
+    
+    console.log('بدء تحميل الإعلان...');
+    setIsAdLoading(true);
+    
+    try {
+      // إنشاء إعلان جديد
+      const interstitial = InterstitialAd.createForAdRequest(interstitialAdUnitId, {
+        requestNonPersonalizedAdsOnly: true,
+        keywords: ['finance', 'expenses', 'money'],
+      });
+      
+      interstitialRef.current = interstitial;
+
+      // إضافة مستمعين لأحداث الإعلان
+      const unsubscribeLoaded = interstitial.addAdEventListener(
+        AdEventType.LOADED,
+        () => {
+          console.log('✅ تم تحميل الإعلان بنجاح');
+          setIsAdLoaded(true);
+          setIsAdLoading(false);
+        }
+      );
+
+      const unsubscribeError = interstitial.addAdEventListener(
+        AdEventType.ERROR,
+        (error) => {
+          console.log('❌ خطأ في تحميل الإعلان:', error);
+          setIsAdLoaded(false);
+          setIsAdLoading(false);
+        }
+      );
+
+      const unsubscribeClosed = interstitial.addAdEventListener(
+        AdEventType.CLOSED,
+        () => {
+          console.log('تم إغلاق الإعلان - إغلاق النافذة المنبثقة');
+          setIsAdLoaded(false);
+          // إغلاق النافذة المنبثقة بعد إغلاق الإعلان
+          if (expenseSaved) {
+            setShowModal(false);
+          }
+          // إعادة تحميل الإعلان للاستخدام التالي
+          interstitialRef.current = null;
+          setTimeout(() => {
+            initializeInterstitialAd();
+          }, 1000);
+        }
+      );
+
+      const unsubscribeOpened = interstitial.addAdEventListener(
+        AdEventType.OPENED,
+        () => {
+          console.log('تم فتح الإعلان');
+        }
+      );
+
+      // بدء تحميل الإعلان
+      interstitial.load();
+
+    } catch (error) {
+      console.log('خطأ في إنشاء الإعلان:', error);
+      setIsAdLoading(false);
+    }
+  };
+
+  // دالة عرض الإعلان
+  const showInterstitialAd = async (): Promise<boolean> => {
+    return new Promise((resolve) => {
+      if (!interstitialRef.current) {
+        console.log('لا يوجد إعلان متاح');
+        resolve(false);
+        return;
+      }
+
+      if (isAdLoaded) {
+        console.log('عرض الإعلان...');
+        try {
+          interstitialRef.current.show();
+          resolve(true);
+        } catch (error) {
+          console.log('خطأ في عرض الإعلان:', error);
+          resolve(false);
+        }
+      } else {
+        console.log('الإعلان غير جاهز للعرض، الحالة:', { isAdLoaded, isAdLoading });
+        resolve(false);
+      }
+    });
+  };
 
   const handleAddExpense = async () => {
     if (!expenseName.trim()) {
@@ -97,7 +220,18 @@ export default function ExpensesTab() {
       setExpenseName('');
       setExpenseAmount('');
       setSelectedCategory('restaurant');
-      setShowModal(false);
+      setExpenseSaved(true);
+      
+      // محاولة عرض الإعلان
+      const adShown = await showInterstitialAd();
+      
+      if (adShown) {
+        console.log('✅ تم عرض الإعلان - سيتم إغلاق النافذة المنبثقة عند إغلاق الإعلان');
+        // لا نغلق النافذة المنبثقة هنا، سيتم إغلاقها في مستمع AdEventType.CLOSED
+      } else {
+        console.log('❌ لم يتم عرض الإعلان - إغلاق النافذة المنبثقة فوراً');
+        setShowModal(false);
+      }
       
       Alert.alert('نجح', 'تم إضافة المصروف بنجاح');
     } catch (error) {
@@ -108,7 +242,7 @@ export default function ExpensesTab() {
     }
   };
 
-  const handleDeleteExpense = (expense: Expense) => {
+  const handleDeleteExpense = (expense: ApiExpense) => {
     Alert.alert(
       'تأكيد الحذف',
       `هل أنت متأكد من حذف "${expense.name}"؟`,
@@ -151,6 +285,7 @@ export default function ExpensesTab() {
   const filteredExpenses = filterCategory === 'all' 
     ? expenses 
     : expenses.filter(expense => expense.category === filterCategory);
+
 
   const totalExpenses = expenses.reduce((sum, expense) => sum + expense.amount, 0);
   const currentMonthExpenses = expenses.reduce((sum, expense) => sum + expense.amount, 0);
@@ -334,6 +469,20 @@ export default function ExpensesTab() {
           </View>
 
           <ScrollView style={styles.modalContent}>
+            {/* عرض حالة الإعلان في وضع التطوير */}
+            {__DEV__ && (
+              <View style={[styles.adStatusContainer, { backgroundColor: theme.colors.surface }]}>
+                <StyledText style={[styles.adStatusText, { color: theme.colors.textSecondary }]}>
+                  حالة الإعلان: {isAdLoading ? '⏳ جاري التحميل...' : isAdLoaded ? '✅ جاهز للعرض' : '❌ غير متاح'}
+                </StyledText>
+                {expenseSaved && (
+                  <StyledText style={[styles.adStatusText, { color: theme.colors.primary }]}>
+                    تم حفظ المصروف - في انتظار عرض الإعلان
+                  </StyledText>
+                )}
+              </View>
+            )}
+
             {/* Category Selection */}
             <StyledText style={[styles.fieldLabel, { color: theme.colors.text }]}>
               اختر الأيقونة
@@ -735,5 +884,15 @@ const styles = StyleSheet.create({
     fontSize: 14,
     fontWeight: '600',
     color: '#2D5A3D',
+  },
+  adStatusContainer: {
+    padding: 10,
+    borderRadius: 8,
+    marginBottom: 16,
+    alignItems: 'center',
+  },
+  adStatusText: {
+    fontSize: 12,
+    fontFamily: 'Tajawal_400Regular',
   },
 });

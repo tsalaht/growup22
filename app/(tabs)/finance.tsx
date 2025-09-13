@@ -7,7 +7,8 @@ import {
   TouchableOpacity,
   Animated,
   SafeAreaView,
-  
+  StatusBar,
+  Platform,
 } from 'react-native';
 import { useTheme } from '@/contexts/ThemeContext';
 import { useFinance } from '@/contexts/FinanceContext';
@@ -23,6 +24,7 @@ import CommitmentsTab from '@/components/finance/CommitmentsTab';
 import ExpensesTab from '@/components/finance/ExpensesTab';
 import ReportsTab from '@/components/finance/ReportsTab';
 import InstallmentsTab from '@/components/finance/InstallmentsTab';
+import { showInterstitialAdAfterDelay } from '@/components/ads/InterstitialAd';
 import {
   useFonts,
   Tajawal_400Regular,
@@ -67,6 +69,13 @@ export default function FinancePage() {
     ]).start();
 
     setActiveTab(tabId);
+    
+    // Show interstitial ad after 3 seconds when switching tabs
+    showInterstitialAdAfterDelay(3000).then((shown) => {
+      if (shown) {
+        console.log('Interstitial ad shown after tab switch');
+      }
+    });
   };
 
   const renderTabContent = () => {
@@ -108,12 +117,17 @@ export default function FinancePage() {
   }
 
   return (
-    <SafeAreaView style={[styles.container, { backgroundColor: theme.colors.background }]}>
-      <View style={styles.header}>
-        <Text style={[styles.headerTitle, { color: theme.colors.text }]}>
-          💰 التخطيط المالي
-        </Text>
-      </View>
+    <View style={[styles.container, { backgroundColor: theme.colors.background }]}>
+      <StatusBar 
+        barStyle={theme.isDark ? 'light-content' : 'dark-content'} 
+        backgroundColor={theme.colors.surface}
+      />
+      <SafeAreaView style={styles.safeArea}>
+        <View style={styles.header}>
+          <Text style={[styles.headerTitle, { color: theme.colors.text }]}>
+            💰 التخطيط المالي
+          </Text>
+        </View>
 
       <ScrollView 
         horizontal 
@@ -172,12 +186,18 @@ export default function FinancePage() {
       <View style={styles.contentContainer}>
         {renderTabContent()}
       </View>
-    </SafeAreaView>
+
+      {/* Bottom padding to avoid content under custom banner below tab bar */}
+      </SafeAreaView>
+    </View>
   );
 }
 
 const styles = StyleSheet.create({
   container: {
+    flex: 1,
+  },
+  safeArea: {
     flex: 1,
   },
   loadingContainer: {
@@ -191,8 +211,10 @@ const styles = StyleSheet.create({
   },
   header: {
     paddingHorizontal: 20,
-    paddingVertical: 16,
+    paddingVertical: Platform.OS === 'android' ? 12 : 16,
+    paddingTop: Platform.OS === 'android' ? 8 : 16,
     alignItems: 'center',
+    backgroundColor: '#F8FAFC',
   },
   headerTitle: {
     fontSize: 24,

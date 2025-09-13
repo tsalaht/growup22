@@ -260,6 +260,8 @@ export default function ProfileScreen() {
           <ArrowLeft color="#FFFFFF" size={16} strokeWidth={2} />
         </TouchableOpacity>
       </ScrollView>
+
+      {/* Bottom padding to avoid content under custom banner below tab bar */}
     </SafeAreaView>
   );
 }
